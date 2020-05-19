@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 // struct sigaction 사용을 위해 선언
 #define _XOPEN_SOURCE
 
@@ -17,16 +18,21 @@ typedef struct _Graph Graph;
 struct _Node;
 typedef struct _Node Node;
 
-struct _Graph {
+struct _Graph
+{
     // Node의 배열처럼 쓰일 포인터
     Node *head;
 };
 
-struct _Node {
+struct _Node
+{
     int dest;
     Node *next;
 };
 
+const char *SEMAPHORE_KEY = "/TSPMULTITHREAD";
+// 그래프 변수 선언
+Graph *graph;
 // 스레드 변수 전역변수로 선언
 pthread_t _producer, *_consumers;
 // 소비자 스레드의 개수를 담을 정수형 변수 선언
@@ -43,7 +49,9 @@ void noInitialNumberOfThreadsError(void);
 void tooManyCommandLineArgumentsError(void);
 void memoryAllocationError(void);
 void threadCreateError(int);
+void semaphoreCreateError(void);
 void outOfBoundError(void);
+void noContextsinFileError(void);
 void initConsumersPointer(void);
 void createThreads(void);
 void reallocConsumerThreads(int);
@@ -52,136 +60,195 @@ int isThreads(const char *);
 int isNum(const char *);
 int getNum(const char *);
 int findFileLength(FILE *);
+void closeThreads(void);
+void closeSemaphore(void);
 void *producer(void *);
 void *consumer(void *);
 void handleSigaction(struct sigaction *);
 void showResult(void);
 void onDisconnect(int);
 
-FILE *openFile(const char *filename) {
+FILE *openFile(const char *filename)
+{
     FILE *res = fopen(filename, "r");
-    if (res == NULL) {
+    if (res == NULL)
+    {
         fileNotFoundError();
     }
     return res;
 }
-void getUserInput(void) {
+void getUserInput(void)
+{
     char buffer[101];
-    while (1) {
+    while (1)
+    {
         fgets(buffer, 101, stdin);
-        if (isStat(buffer)) {
-
-        } else if (isThreads(buffer)) {
-
-        } else if (isNum(buffer)) {
+        if (isStat(buffer))
+        {
+        }
+        else if (isThreads(buffer))
+        {
+        }
+        else if (isNum(buffer))
+        {
             int num = getNum(buffer);
-        } else {
+        }
+        else
+        {
             printf("Wrong keyword\n");
         }
     }
 }
-void checkArgcCorrentness(int argc) {
-    if (argc == 1) {
+void checkArgcCorrentness(int argc)
+{
+    if (argc == 1)
+    {
         // return type이 void인 함수 호출
         // 가독성을 위해서 throw 문을 붙임
         return noCommandLineArgumentError();
-    } else if (argc == 2) {
+    }
+    else if (argc == 2)
+    {
         return noInitialNumberOfThreadsError();
-    } else if (argc > 3) {
+    }
+    else if (argc > 3)
+    {
         return tooManyCommandLineArgumentsError();
-    } else {
+    }
+    else
+    {
         return;
     }
 }
-void fileNotFoundError(void) {
+void fileNotFoundError(void)
+{
     fprintf(stderr, "Error: File not found\n");
     exit(1);
 }
-void noCommandLineArgumentError(void) {
+void noCommandLineArgumentError(void)
+{
     fprintf(stderr, "Error: No command line arguments\n");
     exit(1);
 }
-void noInitialNumberOfThreadsError(void) {
+void noInitialNumberOfThreadsError(void)
+{
     fprintf(stderr, "Error: Initial number of consumer threads not given\n");
     exit(1);
 }
-void tooManyCommandLineArgumentsError(void) {
+void tooManyCommandLineArgumentsError(void)
+{
     fprintf(stderr, "Error: Too many command line arguments\n");
     exit(1);
 }
-void memoryAllocationError(void) {
+void memoryAllocationError(void)
+{
     fprintf(stderr, "Error: Memory allocation failed\n");
     exit(1);
 }
-void outOfBoundError(void) {
+void outOfBoundError(void)
+{
     fprintf(stderr, "Error: Array index out of bound\n");
     exit(1);
 }
-void threadCreateError(int errorCode) {
+void noContextsinFileError(void)
+{
+    fprintf(stderr, "Error: No contexts in text file\n");
+    exit(1);
+}
+void threadCreateError(int errorCode)
+{
     fprintf(stderr,
             "Error: Unable to create thread"
             ", Error Code %d\n",
             errorCode);
     exit(1);
 }
-void initConsumersPointer() {
+void semaphoreCreateError(void)
+{
+    fprintf(stderr,
+            "Error: Unable to create semaphore\n");
+    exit(1);
+}
+void initConsumersPointer()
+{
     _consumers = (pthread_t *)malloc(sizeof(pthread_t) * consumersCount);
 }
-void createThreads() {
+void createThreads()
+{
     int err;
     err = pthread_create(&_producer, NULL, producer, NULL);
-    if (err) {
+    if (err)
+    {
         return threadCreateError(err);
     }
 
-    for (int i = 0; i < consumersCount; i++) {
+    for (int i = 0; i < consumersCount; i++)
+    {
         err = pthread_create(&_consumers[i], NULL, consumer, (void *)&i);
-        if (err) {
+        if (err)
+        {
             return threadCreateError(err);
         }
     }
 }
-void reallocConsumerThreads(int nextCount) {
+void reallocConsumerThreads(int nextCount)
+{
     int currentCount = consumersCount;
     int err;
-    if (currentCount > nextCount) {
-        for (int i = currentCount - 1; i >= nextCount; i--) {
+    if (currentCount > nextCount)
+    {
+        for (int i = currentCount - 1; i >= nextCount; i--)
+        {
             pthread_cancel(_consumers[i]);
         }
     }
     _consumers = realloc((void *)_consumers, nextCount);
 
-    if (_consumers == NULL) {
+    if (_consumers == NULL)
+    {
         return memoryAllocationError();
     }
 
-    if (currentCount < nextCount) {
-        for (int i = currentCount; i < nextCount; i++) {
+    if (currentCount < nextCount)
+    {
+        for (int i = currentCount; i < nextCount; i++)
+        {
             err = pthread_create(&_consumers[i], NULL, consumer, (void *)&i);
-            if (err) {
+            if (err)
+            {
                 return threadCreateError(err);
             }
         }
     }
 }
-void closeThreads() {
+void closeThreads(void)
+{
     pthread_cancel(_producer);
-    for (int i = 0; i < consumersCount; i++) {
+    for (int i = 0; i < consumersCount; i++)
+    {
         pthread_cancel(_consumers[i]);
     }
     free(_consumers);
 }
+void closeSemaphore(void)
+{
+    shm_unlink(SEMAPHORE_KEY);
+}
 
-int isStat(const char *buffer) {
+int isStat(const char *buffer)
+{
     return strncmp(buffer, "stat", strlen("stat")) == 0;
 }
-int isThreads(const char *buffer) {
+int isThreads(const char *buffer)
+{
     return strncmp(buffer, "threads", strlen("threads")) == 0;
 }
-int isNum(const char *buffer) {
+int isNum(const char *buffer)
+{
     return strncmp(buffer, "num", strlen("num")) == 0;
 }
-int getNum(const char *buffer) {
+int getNum(const char *buffer)
+{
     int result;
     char *tempPtr = (char *)malloc(sizeof(char) * strlen(buffer));
     strcpy(tempPtr, buffer);
@@ -191,11 +258,18 @@ int getNum(const char *buffer) {
     free(tempPtr);
     return result;
 }
-int findFileLength(FILE *fp) {
-    int count = 0;
+int findFileLength(FILE *fp)
+{
+    int count = 0, temp;
     // EOF가 나올때까지 count 증가
-    while (fscanf(fp, "%*d") == 1) {
+    while (fscanf(fp, "%d", &temp) == 1)
+    {
         count++;
+    }
+    // 내용이 없으면
+    if (count == 0)
+    {
+        noContextsinFileError();
     }
     // 제곱근을 취한 후 버림한다
     int n = (int)sqrt(count);
@@ -203,15 +277,18 @@ int findFileLength(FILE *fp) {
     rewind(fp);
     return n + 1;
 }
-void *producer(void *ptr) {
+void *producer(void *ptr)
+{
     ;
     return NULL;
 }
-void *consumer(void *numPtr) {
+void *consumer(void *numPtr)
+{
     int number = *(int *)numPtr;
     return NULL;
 }
-void handleSigaction(struct sigaction *actionPtr) {
+void handleSigaction(struct sigaction *actionPtr)
+{
     memset(actionPtr, 0, sizeof(*actionPtr));
     actionPtr->sa_handler = onDisconnect;
     sigaction(SIGINT, actionPtr, NULL);
@@ -220,13 +297,25 @@ void handleSigaction(struct sigaction *actionPtr) {
     sigaction(SIGQUIT, actionPtr, NULL);
 }
 void showResult(void) {}
-void onDisconnect(int sig) {
+void initSemaphore(void)
+{
+    semaphore = sem_open(SEMAPHORE_KEY, O_CREAT, 0700, 1);
+    // 세마포어가 제대로 할당되지 못했을 시
+    if (semaphore <= 0)
+    {
+        return semaphoreCreateError();
+    }
+}
+void onDisconnect(int sig)
+{
     showResult();
     closeThreads();
+    closeSemaphore();
     exit(1);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     // ctrl-c 핸들러
     struct sigaction action;
     handleSigaction(&action);
