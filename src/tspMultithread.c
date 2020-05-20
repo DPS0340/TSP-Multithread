@@ -3,24 +3,23 @@
 // multi threading
 #include <pthread.h>
 // 세마포어 header file
+#include <fcntl.h>
+#include <inttypes.h>
+#include <limits.h>
 #include <semaphore.h>
 #include <signal.h>
 #include <stdio.h>
-#include <sys/mman.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <inttypes.h>
-#include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
+#include <sys/types.h>
+#include <unistd.h>
 // struct sigaction 사용을 위해 선언
 #define _XOPEN_SOURCE
 #define BUFFER_SIZE 50
 
-typedef struct _Element
-{
+typedef struct _Element {
     int currentIndex;
     uint64_t visited;
 } Element;
@@ -102,34 +101,25 @@ void showThread(void);
 void showStat(void);
 void onDisconnect(int);
 
-int isEveryThreadDisconnected(void)
-{
-    for (int i = 0; i < consumersLength + 1; i++)
-    {
-        if (isdisconnected[i] == 0)
-        {
+int isEveryThreadDisconnected(void) {
+    for (int i = 0; i < consumersLength + 1; i++) {
+        if (isdisconnected[i] == 0) {
             return 0;
         }
     }
     return 1;
 }
-void freeMemories(void)
-{
-    for (int i = 0; i < fileLength; i++)
-    {
+void freeMemories(void) {
+    for (int i = 0; i < fileLength; i++) {
         free(cache[i]);
     }
     free(cache);
 }
-int min(int a, int b)
-{
-    return a < b ? a : b;
-}
-int TSP_consumer(int threadNumber, int count, int currentIndex, uint64_t visited)
-{
+int min(int a, int b) { return a < b ? a : b; }
+int TSP_consumer(int threadNumber, int count, int currentIndex,
+                 uint64_t visited) {
     record[threadNumber][count + 11] = currentIndex;
-    if (visited == (1 << fileLength) - 1)
-    {
+    if (visited == (1 << fileLength) - 1) {
         searchCount[threadNumber]++;
         sem_wait(writeSemaphore);
         searchCountSum++;
@@ -137,26 +127,24 @@ int TSP_consumer(int threadNumber, int count, int currentIndex, uint64_t visited
         return map[currentIndex][0];
     }
     int *ptr = &cache[currentIndex][visited];
-    if (*ptr)
-    {
+    if (*ptr) {
         return *ptr;
     }
     *ptr = INT16_MAX;
-    for (int next = 0; next < fileLength; next++)
-    {
+    for (int next = 0; next < fileLength; next++) {
         if (visited & (1 << next))
             continue;
         if (map[currentIndex][next] == 0)
             continue;
-        *ptr = min(*ptr, TSP_consumer(threadNumber, count + 1, next, visited | (1 << next)) + map[currentIndex][next]);
+        *ptr = min(*ptr, TSP_consumer(threadNumber, count + 1, next,
+                                      visited | (1 << next)) +
+                             map[currentIndex][next]);
     }
     return *ptr;
 }
-int TSP_producer(int currentIndex, uint64_t visited, int count)
-{
+int TSP_producer(int currentIndex, uint64_t visited, int count) {
     recordOfProducer[count] = currentIndex;
-    if (count == 10)
-    {
+    if (count == 10) {
         sem_wait(writeSemaphore);
         buffer[bufferIndexModOfProducer].currentIndex = currentIndex;
         buffer[bufferIndexModOfProducer].visited = visited;
@@ -166,72 +154,56 @@ int TSP_producer(int currentIndex, uint64_t visited, int count)
         sem_post(writeSemaphore);
         return 0;
     }
-    if (visited == (1 << fileLength) - 1)
-    {
+    if (visited == (1 << fileLength) - 1) {
         return map[currentIndex][0];
     }
     int *ptr = &cache[currentIndex][visited];
-    if (*ptr)
-    {
+    if (*ptr) {
         return *ptr;
     }
     *ptr = INT16_MAX;
-    for (int next = 0; next < fileLength; next++)
-    {
+    for (int next = 0; next < fileLength; next++) {
         if (visited & (1 << next))
             continue;
         if (map[currentIndex][next] == 0)
             continue;
-        *ptr = min(*ptr, TSP_producer(next, visited | (1 << next), count + 1) + map[currentIndex][next]);
+        *ptr = min(*ptr, TSP_producer(next, visited | (1 << next), count + 1) +
+                             map[currentIndex][next]);
     }
     return *ptr;
 }
 
-void initCache(void)
-{
+void initCache(void) {
     cache = (int **)calloc(fileLength, sizeof(int *));
-    if (cache == NULL)
-    {
+    if (cache == NULL) {
         return memoryAllocationError();
     }
-    for (int i = 0; i < fileLength; i++)
-    {
+    for (int i = 0; i < fileLength; i++) {
         cache[i] = (int *)calloc(1 << fileLength, sizeof(int));
-        if (cache[i] == NULL)
-        {
+        if (cache[i] == NULL) {
             return memoryAllocationError();
         }
     }
 }
 
-int getConsumerNumber(void)
-{
-    return consumersCount++;
-}
+int getConsumerNumber(void) { return consumersCount++; }
 
-FILE *openFile(const char *filename)
-{
+FILE *openFile(const char *filename) {
     FILE *res = fopen(filename, "r");
-    if (res == NULL)
-    {
+    if (res == NULL) {
         fileNotFoundError();
     }
     return res;
 }
-void initMap(FILE *fp, int fileLength)
-{
+void initMap(FILE *fp, int fileLength) {
     int resCode;
-    for (int i = 0; i < fileLength; i++)
-    {
-        for (int j = 0; j < fileLength; j++)
-        {
-            if (i == j)
-            {
+    for (int i = 0; i < fileLength; i++) {
+        for (int j = 0; j < fileLength; j++) {
+            if (i == j) {
                 continue;
             }
             resCode = fscanf(fp, "%d", &map[i][j]);
-            if (resCode != 1)
-            {
+            if (resCode != 1) {
                 fscanfError();
             }
         }
@@ -239,199 +211,150 @@ void initMap(FILE *fp, int fileLength)
     return;
 }
 
-void getUserInput(void)
-{
+void getUserInput(void) {
     char buffer[101];
-    while (1)
-    {
+    while (1) {
         fgets(buffer, 101, stdin);
-        if (isStat(buffer))
-        {
+        if (isStat(buffer)) {
             showStat();
-        }
-        else if (isThreads(buffer))
-        {
+        } else if (isThreads(buffer)) {
             showThread();
             showStat();
-        }
-        else if (isNum(buffer))
-        {
+        } else if (isNum(buffer)) {
             int num = getNum(buffer);
-            if (1 < num || num > 8)
-            {
+            if (1 < num || num > 8) {
                 return invalidThreadNumberError();
             }
 
             reallocConsumerThreads(num);
-        }
-        else
-        {
+        } else {
             printf("Wrong keyword\n");
         }
     }
 }
-void checkArgcCorrentness(int argc)
-{
-    if (argc == 1)
-    {
+void checkArgcCorrentness(int argc) {
+    if (argc == 1) {
         // return type이 void인 함수 호출
         // 가독성을 위해서 throw 문을 붙임
         return noCommandLineArgumentError();
-    }
-    else if (argc == 2)
-    {
+    } else if (argc == 2) {
         return noInitialNumberOfThreadsError();
-    }
-    else if (argc > 3)
-    {
+    } else if (argc > 3) {
         return tooManyCommandLineArgumentsError();
-    }
-    else
-    {
+    } else {
         return;
     }
 }
-void fileNotFoundError(void)
-{
+void fileNotFoundError(void) {
     fprintf(stderr, "Error: File not found\n");
     exit(1);
 }
-void noCommandLineArgumentError(void)
-{
+void noCommandLineArgumentError(void) {
     fprintf(stderr, "Error: No command line arguments\n");
     exit(1);
 }
-void noInitialNumberOfThreadsError(void)
-{
+void noInitialNumberOfThreadsError(void) {
     fprintf(stderr, "Error: Initial number of consumer threads not given\n");
     exit(1);
 }
-void tooManyCommandLineArgumentsError(void)
-{
+void tooManyCommandLineArgumentsError(void) {
     fprintf(stderr, "Error: Too many command line arguments\n");
     exit(1);
 }
-void memoryAllocationError(void)
-{
+void memoryAllocationError(void) {
     fprintf(stderr, "Error: Memory allocation failed\n");
     exit(1);
 }
-void outOfBoundError(void)
-{
+void outOfBoundError(void) {
     fprintf(stderr, "Error: Array index out of bound\n");
     exit(1);
 }
-void invalidThreadNumberError(void)
-{
+void invalidThreadNumberError(void) {
     fprintf(stderr, "Error: Invalid thread number\n");
     exit(1);
 }
-void noContextsinFileError(void)
-{
+void noContextsinFileError(void) {
     fprintf(stderr, "Error: No contexts in text file\n");
     exit(1);
 }
-void fscanfError(void)
-{
+void fscanfError(void) {
     fprintf(stderr, "Error: fscanf failed\n");
     exit(1);
 }
-void threadCreateError(int errorCode)
-{
+void threadCreateError(int errorCode) {
     fprintf(stderr,
             "Error: Unable to create thread"
             ", Error Code %d\n",
             errorCode);
     exit(1);
 }
-void semaphoreCreateError(void)
-{
-    fprintf(stderr,
-            "Error: Unable to create semaphore\n");
+void semaphoreCreateError(void) {
+    fprintf(stderr, "Error: Unable to create semaphore\n");
     exit(1);
 }
-void initConsumersPointer()
-{
+void initConsumersPointer() {
     _consumers = (pthread_t *)calloc(consumersLength, sizeof(pthread_t));
 }
-void createThreads()
-{
+void createThreads() {
     int err;
     err = pthread_create(&_producer, NULL, producer, NULL);
-    if (err)
-    {
+    if (err) {
         return threadCreateError(err);
     }
 
-    for (int i = 0; i < consumersLength; i++)
-    {
+    for (int i = 0; i < consumersLength; i++) {
         err = pthread_create(&_consumers[i], NULL, consumer, NULL);
-        if (err)
-        {
+        if (err) {
             return threadCreateError(err);
         }
     }
 }
-void reallocConsumerThreads(int nextCount)
-{
+void reallocConsumerThreads(int nextCount) {
     int currentCount = consumersLength;
     int err;
-    if (currentCount > nextCount)
-    {
-        for (int i = currentCount - 1; i >= nextCount; i--)
-        {
+    if (currentCount > nextCount) {
+        for (int i = currentCount - 1; i >= nextCount; i--) {
             pthread_cancel(_consumers[i]);
             consumersLength--;
         }
     }
     _consumers = realloc((void *)_consumers, nextCount);
 
-    if (_consumers == NULL)
-    {
+    if (_consumers == NULL) {
         return memoryAllocationError();
     }
 
-    if (currentCount < nextCount)
-    {
-        for (int i = currentCount; i < nextCount; i++)
-        {
+    if (currentCount < nextCount) {
+        for (int i = currentCount; i < nextCount; i++) {
             err = pthread_create(&_consumers[i], NULL, consumer, (void *)&i);
-            if (err)
-            {
+            if (err) {
                 return threadCreateError(err);
             }
         }
     }
 }
-void closeThreads(void)
-{
+void closeThreads(void) {
     pthread_cancel(_producer);
-    for (int i = 0; i < consumersLength; i++)
-    {
+    for (int i = 0; i < consumersLength; i++) {
         pthread_cancel(_consumers[i]);
     }
     free(_consumers);
 }
-void closeSemaphore(void)
-{
+void closeSemaphore(void) {
     sem_unlink(GETSEMAPHORE_KEY);
     sem_unlink(WRITESEMAPHORE_KEY);
 }
 
-int isStat(const char *buffer)
-{
+int isStat(const char *buffer) {
     return strncmp(buffer, "stat", strlen("stat")) == 0;
 }
-int isThreads(const char *buffer)
-{
+int isThreads(const char *buffer) {
     return strncmp(buffer, "threads", strlen("threads")) == 0;
 }
-int isNum(const char *buffer)
-{
+int isNum(const char *buffer) {
     return strncmp(buffer, "num", strlen("num")) == 0;
 }
-int getNum(const char *buffer)
-{
+int getNum(const char *buffer) {
     int result;
     char *tempPtr = (char *)calloc(strlen(buffer), sizeof(char));
     strcpy(tempPtr, buffer);
@@ -441,17 +364,14 @@ int getNum(const char *buffer)
     free(tempPtr);
     return result;
 }
-int findFileLength(FILE *fp)
-{
+int findFileLength(FILE *fp) {
     int count = 0, temp;
     // EOF가 나올때까지 count 증가
-    while (fscanf(fp, "%d", &temp) == 1)
-    {
+    while (fscanf(fp, "%d", &temp) == 1) {
         count++;
     }
     // 내용이 없으면
-    if (count == 0)
-    {
+    if (count == 0) {
         noContextsinFileError();
     }
     // 제곱근을 취한 후 버림한다
@@ -460,27 +380,22 @@ int findFileLength(FILE *fp)
     rewind(fp);
     return n + 1;
 }
-void *producer(void *ptr)
-{
-    for (int i = 0; i < fileLength; i++)
-    {
+void *producer(void *ptr) {
+    for (int i = 0; i < fileLength; i++) {
         TSP_producer(i, (uint64_t)1 << i, 0);
         sem_post(getSemaphore);
     }
     isdisconnected[0] = 1;
     return NULL;
 }
-void *consumer(void *ptr)
-{
+void *consumer(void *ptr) {
     int consumerNumber = getConsumerNumber();
     tid[consumerNumber] = gettid();
-    while (searchCountSum < fileLength)
-    {
+    while (searchCountSum < fileLength) {
         sem_wait(getSemaphore);
         Element *elem_ptr = &buffer[bufferIndexModOfConsumer];
         int *currentRecord = record[consumerNumber];
-        for (int i = 0; i < 11; i++)
-        {
+        for (int i = 0; i < 11; i++) {
             currentRecord[i] = recordOfProducer[i];
         }
         sem_wait(writeSemaphore);
@@ -488,30 +403,29 @@ void *consumer(void *ptr)
         bufferIndexDivOfConsumer += bufferIndexModOfConsumer / BUFFER_SIZE;
         bufferIndexModOfConsumer %= BUFFER_SIZE;
         sem_post(writeSemaphore);
-        int resultOfConsumerTSP = TSP_consumer(consumerNumber, 0, elem_ptr->currentIndex, elem_ptr->visited);
+        int resultOfConsumerTSP = TSP_consumer(
+            consumerNumber, 0, elem_ptr->currentIndex, elem_ptr->visited);
         int firstVisited = currentRecord[0];
         int secondVisited = currentRecord[1];
-        int result = resultOfConsumerTSP + cache[firstVisited][(uint64_t)(1 << firstVisited) + (uint64_t)(1 << secondVisited)];
+        int result = resultOfConsumerTSP +
+                     cache[firstVisited][(uint64_t)(1 << firstVisited) +
+                                         (uint64_t)(1 << secondVisited)];
         printf("%d\n", result);
-        if (resultOfConsumerTSP < bestResult)
-        {
+        if (resultOfConsumerTSP < bestResult) {
             bestResult = result;
-            for (int i = 0; i < fileLength; i++)
-            {
+            for (int i = 0; i < fileLength; i++) {
                 fastestWay[i] = currentRecord[i];
             }
         }
     }
     isdisconnected[consumerNumber + 1] = 1;
-    if (isEveryThreadDisconnected())
-    {
+    if (isEveryThreadDisconnected()) {
         onDisconnect(0);
     }
 
     return NULL;
 }
-void handleSigaction(struct sigaction *actionPtr)
-{
+void handleSigaction(struct sigaction *actionPtr) {
     memset(actionPtr, 0, sizeof(*actionPtr));
     actionPtr->sa_handler = onDisconnect;
     sigaction(SIGINT, actionPtr, NULL);
@@ -519,52 +433,44 @@ void handleSigaction(struct sigaction *actionPtr)
     sigaction(SIGTERM, actionPtr, NULL);
     sigaction(SIGQUIT, actionPtr, NULL);
 }
-void showResult(void)
-{
+void showResult(void) {
     showStat();
     showThread();
 }
-void showThread(void)
-{
-    for (int i = 0; i < consumersLength; i++)
-    {
-        printf("Thread Number : %d\n  TID: %d\n   searched routes of subtask: %d\n", i + 1, tid[i], searchCount[i]);
+void showThread(void) {
+    for (int i = 0; i < consumersLength; i++) {
+        printf("Thread Number : %d\n  TID: %d\n   searched routes of subtask: "
+               "%d\n",
+               i + 1, tid[i], searchCount[i]);
     }
 }
-void showStat(void)
-{
+void showStat(void) {
     int sum = 0;
-    for (int i = 0; i < consumersLength; i++)
-    {
+    for (int i = 0; i < consumersLength; i++) {
         sum += searchCount[i];
     }
     printf("\nSum of searched routes: %d\n", sum);
-    if (bestResult == INT16_MAX)
-    {
+    if (bestResult == INT16_MAX) {
         return;
     }
     printf("Current Lowest Sum of Weights: %d\n", bestResult);
     printf("Way: ");
-    for (int i = 0; i < fileLength; i++)
-    {
+    for (int i = 0; i < fileLength; i++) {
         printf("%d->", fastestWay[fileLength]);
     }
     // 마지막 화살표 지우기
     printf("\b\b");
     printf("  \n");
 }
-void initSemaphore(void)
-{
+void initSemaphore(void) {
     getSemaphore = sem_open(GETSEMAPHORE_KEY, O_CREAT, 0700, 0);
     writeSemaphore = sem_open(WRITESEMAPHORE_KEY, O_CREAT, 0700, 1);
     // 세마포어가 제대로 할당되지 못했을 시
-    if (getSemaphore <= 0 || writeSemaphore <= 0)
-    {
+    if (getSemaphore <= 0 || writeSemaphore <= 0) {
         return semaphoreCreateError();
     }
 }
-void onDisconnect(int sig)
-{
+void onDisconnect(int sig) {
     showResult();
     freeMemories();
     closeThreads();
@@ -572,8 +478,7 @@ void onDisconnect(int sig)
     exit(1);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     printf("TSP Program\n");
     // ctrl-c 핸들러
     struct sigaction action;
@@ -584,8 +489,7 @@ int main(int argc, char **argv)
     // 파일이름 문자열 선언
     char *filename = argv[1];
     consumersLength = atoi(argv[2]);
-    if (1 > consumersLength || consumersLength > 8)
-    {
+    if (1 > consumersLength || consumersLength > 8) {
         invalidThreadNumberError();
     }
 
