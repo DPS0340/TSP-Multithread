@@ -122,7 +122,7 @@ int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count,
         return map[currentIndex][0];
     }
     int *ptr = &cache[currentIndex][visited];
-    if (*ptr) {
+    if (*ptr && *ptr != INT16_MAX) {
         return *ptr;
     }
     *ptr = INT16_MAX;
@@ -168,7 +168,7 @@ int TSP_producer(int *pathRecord, int sum, int currentIndex, uint64_t visited,
         return map[currentIndex][0];
     }
     int *ptr = &cache[currentIndex][visited];
-    if (*ptr) {
+    if (*ptr && *ptr != INT16_MAX) {
         return *ptr;
     }
     *ptr = INT16_MAX;
