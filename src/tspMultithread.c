@@ -15,6 +15,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#define gettid() syscall(SYS_gettid)
 // struct sigaction 사용을 위해 선언
 #define _XOPEN_SOURCE
 #define BUFFER_SIZE 200
