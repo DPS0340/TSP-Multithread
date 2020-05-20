@@ -245,6 +245,7 @@ void initMap(FILE *fp, int fileLength)
             }
         }
     }
+    fclose(fp);
     return;
 }
 
