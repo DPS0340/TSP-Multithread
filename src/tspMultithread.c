@@ -39,8 +39,6 @@ int tid[8];
 int searchCountProducerSum;
 int searchCountConsumersSum;
 int searchCount[8];
-int record[8][50];
-int recordOfProducer[BUFFER_SIZE][50];
 int **cache;
 int map[50][50];
 int prodIndex = 0;
@@ -156,10 +154,8 @@ int TSP_producer(int *pathRecord, int sum, int currentIndex, uint64_t visited, i
     if (count == fileLength - 12)
     {
         pthread_mutex_lock(&prodMutex);
-        /* Check if current index is free to fill. */
         while (buffer[prodIndex].visited)
         {
-            /* If index is not free, wait for consumer to consume. */
             pthread_cond_wait(&prodCond, &prodMutex);
         }
         buffer[prodIndex].sum = sum;
@@ -172,7 +168,6 @@ int TSP_producer(int *pathRecord, int sum, int currentIndex, uint64_t visited, i
         prodIndex = (prodIndex + 1) % BUFFER_SIZE;
         pthread_mutex_unlock(&prodMutex);
 
-        /* Notify consumer that an item has been produced. */
         pthread_mutex_lock(&consMutex);
         pthread_cond_signal(&consCond);
         pthread_mutex_unlock(&consMutex);
@@ -506,20 +501,17 @@ void *consumer(void *ptr)
             pthread_cond_signal(&consCond);
             if (consumersLength == 0)
             {
-                printf("Task Done!\n");
+                printf("\nTask Done!\n");
                 onDisconnect(0);
             }
             break;
         }
 
-        /* Check if current index is empty. */
-        while (!buffer[consIndex].visited)
+        while (buffer[consIndex].visited == 0)
         {
-            /* If index is empty, wait for producer to produce. */
             pthread_cond_wait(&consCond, &consMutex);
         }
 
-        /* Index is filled, consume it. */
         Elem = buffer[consIndex];
         for (int i = 0; i < fileLength - 11; i++)
         {
@@ -529,10 +521,8 @@ void *consumer(void *ptr)
         buffer[consIndex].currentIndex = 0;
         buffer[consIndex].visited = 0;
 
-        /* Update the consumer index. */
         consIndex = (consIndex + 1) % BUFFER_SIZE;
         pthread_mutex_unlock(&consMutex);
-        /* Notify producer that an item has been consumed. */
         pthread_mutex_lock(&prodMutex);
         pthread_cond_signal(&prodCond);
         pthread_mutex_unlock(&prodMutex);
