@@ -11,7 +11,8 @@
 				"-o",
 				"${fileDirname}/${fileBasenameNoExtension}",
 				"-lm",
-				"-lpthread"
+				"-lpthread",
+				"-lrt"
 			],
 			"options": {
 				"cwd": "/usr/bin"
