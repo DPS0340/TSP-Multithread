@@ -18,26 +18,22 @@
 // struct sigaction 사용을 위해 선언
 #define _XOPEN_SOURCE
 #define BUFFER_SIZE 200
+#define THREAD_END_CODE -5555
 
 typedef struct _Element
 {
     int currentIndex;
+    int sum;
     uint64_t visited;
+    int *path;
 } Element;
 
-// 세마포어를 할당받을 키값 설정
-const char *WRITESEMAPHORE_KEY = "/WRITESEMAPHORE";
-const char *GETSEMAPHORE_KEY = "/GETSEMAPHORE";
 // 스레드 변수 전역변수로 선언
 pthread_t _producer, *_consumers;
 // 소비자 스레드의 개수를 담을 정수형 변수 선언
 int consumersLength;
-// 소비자 스레드의 주어지는 id 역할을 할 정수형 변수 선언
+// 소비자 스레드에게 주어지는 id 역할을 할 정수형 변수 선언
 int consumersCount;
-// 스레드에서 전역변수 쓰기 관리를 위한 세마포어 선언
-sem_t *writeSemaphore;
-// 스레드에서 전역변수 읽기 관리를 위한 세마포어 선언
-sem_t *getSemaphore;
 Element buffer[BUFFER_SIZE];
 int tid[8];
 int searchCountProducerSum;
@@ -47,31 +43,25 @@ int record[8][50];
 int recordOfProducer[BUFFER_SIZE][50];
 int **cache;
 int map[50][50];
-int isdisconnected[9];
-int toBeDisconnected;
+int prodIndex = 0;
+int consIndex = 0;
+pthread_mutex_t consMutex;
+pthread_mutex_t prodMutex;
+pthread_cond_t consCond;
+pthread_cond_t prodCond;
 
-// 유한 버퍼의 생산자의 현재 인덱스의 div값 변수 선언
-int bufferIndexDivOfProducer;
-// 유한 버퍼의 생산자의 현재 인덱스의 mod값 변수 선언
-int bufferIndexModOfProducer;
-// 유한 버퍼의 소비자의 현재 인덱스의 mod값 변수 선언
-int bufferIndexDivOfConsumer;
-// 유한 버퍼의 소비자의 현재 인덱스의 mod값 변수 선언
-int bufferIndexModOfConsumer;
 // 거리의 최소값 변수 선언
 int bestResult = INT16_MAX;
 int fastestWay[50];
 // 파일의 행 갯수 선언
 int fileLength;
 
-int isEveryConsumerThreadDisconnected(void);
-int isBufferClear(void);
 void freeMemories(void);
 int min(int a, int b);
 FILE *openFile(const char *);
 int getConsumerNumber(void);
-int TSP_consumer(int, int, int, uint64_t);
-int TSP_producer(int, uint64_t, int);
+int TSP_consumer(int *, int, int, int, int, uint64_t);
+int TSP_producer(int *, int, int, uint64_t, int);
 void initMap(FILE *, int);
 void initCache(void);
 void getUserInput(void);
@@ -96,30 +86,16 @@ int isNum(const char *);
 int getNum(const char *);
 int findFileLength(FILE *);
 void closeThreads(void);
-void closeSemaphore(void);
+void closeMutex(void);
 void *producer(void *);
 void *consumer(void *);
+void initBuffer(void);
 void handleSigaction(struct sigaction *);
 void showResult(void);
 void showThread(void);
 void showStat(void);
 void onDisconnect(int);
 
-int isEveryConsumerThreadDisconnected(void)
-{
-    for (int i = 1; i < consumersLength + 1; i++)
-    {
-        if (isdisconnected[i] == 0)
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
-int isBufferClear(void)
-{
-    return bufferIndexDivOfConsumer * BUFFER_SIZE + bufferIndexModOfConsumer >= bufferIndexDivOfProducer * BUFFER_SIZE + bufferIndexModOfProducer;
-}
 void freeMemories(void)
 {
     for (int i = 0; i < fileLength; i++)
@@ -129,14 +105,26 @@ void freeMemories(void)
     free(cache);
 }
 int min(int a, int b) { return a < b ? a : b; }
-int TSP_consumer(int threadNumber, int count, int currentIndex,
+int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count, int currentIndex,
                  uint64_t visited)
 {
-    record[threadNumber][fileLength - 11 + count] = currentIndex;
+    pathRecord[count] = currentIndex;
+    pthread_mutex_lock(&consMutex);
     searchCountConsumersSum++;
     searchCount[threadNumber]++;
+    pthread_mutex_unlock(&consMutex);
     if (visited == (1 << fileLength) - 1)
     {
+        if (sum < bestResult)
+        {
+            pthread_mutex_lock(&consMutex);
+            bestResult = sum;
+            for (int i = 0; i < fileLength; i++)
+            {
+                fastestWay[i] = pathRecord[i];
+            }
+            pthread_mutex_unlock(&consMutex);
+        }
         return map[currentIndex][0];
     }
     int *ptr = &cache[currentIndex][visited];
@@ -151,29 +139,43 @@ int TSP_consumer(int threadNumber, int count, int currentIndex,
         {
             continue;
         }
-        if (visited & (1 << next + 1))
+        if (visited & (1 << next))
             continue;
         if (map[currentIndex][next] == 0)
             continue;
-        *ptr = min(*ptr, TSP_consumer(threadNumber, count + 1, next,
-                                      visited | (1 << next + 1)) +
+        *ptr = min(*ptr, TSP_consumer(pathRecord, sum + map[currentIndex][next], threadNumber, count + 1, next,
+                                      visited | (1 << next)) +
                              map[currentIndex][next]);
     }
     return *ptr;
 }
-int TSP_producer(int currentIndex, uint64_t visited, int count)
+int TSP_producer(int *pathRecord, int sum, int currentIndex, uint64_t visited, int count)
 {
-    recordOfProducer[bufferIndexModOfProducer][count] = currentIndex;
+    pathRecord[count] = currentIndex;
     searchCountProducerSum++;
-    if (count == fileLength - 11)
+    if (count == fileLength - 12)
     {
-        sem_wait(writeSemaphore);
-        buffer[bufferIndexModOfProducer].currentIndex = currentIndex;
-        buffer[bufferIndexModOfProducer].visited = visited;
-        bufferIndexModOfProducer++;
-        bufferIndexDivOfProducer += bufferIndexModOfProducer / BUFFER_SIZE;
-        bufferIndexModOfProducer %= BUFFER_SIZE;
-        sem_post(writeSemaphore);
+        pthread_mutex_lock(&prodMutex);
+        /* Check if current index is free to fill. */
+        while (buffer[prodIndex].visited)
+        {
+            /* If index is not free, wait for consumer to consume. */
+            pthread_cond_wait(&prodCond, &prodMutex);
+        }
+        buffer[prodIndex].sum = sum;
+        buffer[prodIndex].currentIndex = currentIndex;
+        buffer[prodIndex].visited = visited;
+        for (int i = 0; i < count + 1; i++)
+        {
+            buffer[prodIndex].path[i] = pathRecord[i];
+        }
+        prodIndex = (prodIndex + 1) % BUFFER_SIZE;
+        pthread_mutex_unlock(&prodMutex);
+
+        /* Notify consumer that an item has been produced. */
+        pthread_mutex_lock(&consMutex);
+        pthread_cond_signal(&consCond);
+        pthread_mutex_unlock(&consMutex);
         return 0;
     }
     if (visited == (1 << fileLength) - 1)
@@ -192,11 +194,9 @@ int TSP_producer(int currentIndex, uint64_t visited, int count)
         {
             continue;
         }
-        if (visited & (1 << next + 1))
+        if (visited & (1 << next))
             continue;
-        if (map[currentIndex][next] == 0)
-            continue;
-        *ptr = min(*ptr, TSP_producer(next, visited | (1 << next + 1), count + 1) +
+        *ptr = min(*ptr, TSP_producer(pathRecord, sum + map[currentIndex][next], next, visited | (1 << next), count + 1) +
                              map[currentIndex][next]);
     }
     return *ptr;
@@ -257,11 +257,10 @@ void getUserInput(void)
     while (1)
     {
         fgets(buffer, 101, stdin);
-        if (toBeDisconnected)
+        if (consumersLength == 0)
         {
-            break;
+            return;
         }
-
         if (isStat(buffer))
         {
             showStat();
@@ -428,10 +427,13 @@ void closeThreads(void)
     free(_consumers);
     pthread_cancel(_producer);
 }
-void closeSemaphore(void)
+void closeMutex(void)
 {
-    sem_unlink(GETSEMAPHORE_KEY);
-    sem_unlink(WRITESEMAPHORE_KEY);
+    pthread_mutex_destroy(&prodMutex);
+    pthread_mutex_destroy(&consMutex);
+
+    pthread_cond_destroy(&prodCond);
+    pthread_cond_destroy(&consCond);
 }
 
 int isStat(const char *buffer)
@@ -478,53 +480,97 @@ int findFileLength(FILE *fp)
 }
 void *producer(void *ptr)
 {
+    int path[50] = {
+        0,
+    };
     for (int i = 0; i < fileLength; i++)
     {
-        sem_post(getSemaphore);
-        TSP_producer(i, (uint64_t)1 << i, 0);
+        TSP_producer(path, 0, i, (uint64_t)1 << i, 0);
     }
-    isdisconnected[0] = 1;
-    sleep(5);
-    onDisconnect(0);
+    buffer[prodIndex].currentIndex = THREAD_END_CODE;
     return NULL;
 }
 void *consumer(void *ptr)
 {
+    Element Elem;
     int consumerNumber = getConsumerNumber();
     tid[consumerNumber] = gettid();
+    int currentRecord[50];
     while (1)
     {
-        while (isBufferClear())
-            ;
-        sem_wait(getSemaphore);
-        Element *elem_ptr = &buffer[bufferIndexModOfConsumer];
-        int *currentRecord = record[consumerNumber];
-        memcpy(currentRecord, recordOfProducer[bufferIndexModOfConsumer], 11);
-        sem_wait(writeSemaphore);
-        bufferIndexModOfConsumer++;
-        bufferIndexDivOfConsumer += bufferIndexModOfConsumer / BUFFER_SIZE;
-        bufferIndexModOfConsumer %= BUFFER_SIZE;
-        sem_post(writeSemaphore);
-        int resultOfConsumerTSP = TSP_consumer(
-            consumerNumber, 0, elem_ptr->currentIndex, elem_ptr->visited);
-        int firstVisited = currentRecord[0];
-        int secondVisited = currentRecord[1];
-        int result = resultOfConsumerTSP +
-                     cache[firstVisited][(uint64_t)(1 << firstVisited) +
-                                         (uint64_t)(1 << secondVisited)];
-        if (result < bestResult)
+        pthread_mutex_lock(&consMutex);
+        if (buffer[consIndex].currentIndex == THREAD_END_CODE)
         {
-            bestResult = result;
-            for (int i = 0; i < fileLength; i++)
+            consumersLength--;
+            pthread_mutex_unlock(&consMutex);
+            pthread_cond_signal(&consCond);
+            if (consumersLength == 0)
             {
-                fastestWay[i] = currentRecord[i];
+                printf("Task Done!\n");
+                onDisconnect(0);
             }
+            break;
+        }
+
+        /* Check if current index is empty. */
+        while (!buffer[consIndex].visited)
+        {
+            /* If index is empty, wait for producer to produce. */
+            pthread_cond_wait(&consCond, &consMutex);
+        }
+
+        /* Index is filled, consume it. */
+        Elem = buffer[consIndex];
+        for (int i = 0; i < fileLength - 11; i++)
+        {
+            currentRecord[i] = Elem.path[i];
+        }
+        buffer[consIndex].sum = 0;
+        buffer[consIndex].currentIndex = 0;
+        buffer[consIndex].visited = 0;
+
+        /* Update the consumer index. */
+        consIndex = (consIndex + 1) % BUFFER_SIZE;
+        pthread_mutex_unlock(&consMutex);
+        /* Notify producer that an item has been consumed. */
+        pthread_mutex_lock(&prodMutex);
+        pthread_cond_signal(&prodCond);
+        pthread_mutex_unlock(&prodMutex);
+
+        for (int next = 0; next < fileLength; next++)
+        {
+            if (Elem.currentIndex == next)
+            {
+                continue;
+            }
+            if (Elem.visited & (1 << next))
+                continue;
+            if (map[Elem.currentIndex][next] == 0)
+                continue;
+            TSP_consumer(currentRecord,
+                         Elem.sum,
+                         consumerNumber,
+                         fileLength - 11, next, Elem.visited | (1 << next));
         }
     }
 
     pthread_exit(NULL);
 
     return NULL;
+}
+void initBuffer(void)
+{
+    for (int i = 0; i < BUFFER_SIZE; i++)
+    {
+        buffer[i].path = (int *)calloc(50, sizeof(int));
+    }
+}
+void closeBuffer(void)
+{
+    for (int i = 0; i < BUFFER_SIZE; i++)
+    {
+        free(buffer[i].path);
+    }
 }
 void handleSigaction(struct sigaction *actionPtr)
 {
@@ -571,28 +617,37 @@ void showStat(void)
 }
 void initSemaphore(void)
 {
-    getSemaphore = sem_open(GETSEMAPHORE_KEY, O_CREAT, 0700, 0);
-    writeSemaphore = sem_open(WRITESEMAPHORE_KEY, O_CREAT, 0700, 1);
-    // 세마포어가 제대로 할당되지 못했을 시
-    if (getSemaphore <= 0 || writeSemaphore <= 0)
-    {
-        return semaphoreCreateError();
-    }
+    pthread_mutex_init(&consMutex, NULL);
+    pthread_mutex_init(&prodMutex, NULL);
+
+    pthread_cond_init(&consCond, NULL);
+    pthread_cond_init(&prodCond, NULL);
 }
 void onDisconnect(int sig)
 {
     showResult();
     closeThreads();
-    closeSemaphore();
+    closeMutex();
+    closeBuffer();
     freeMemories();
-    toBeDisconnected = 1;
     pthread_exit(NULL);
     exit(0);
+}
+void destroyMutex(void)
+{
+    pthread_mutex_destroy(&prodMutex);
+    pthread_mutex_destroy(&consMutex);
+}
+void destroyCond(void)
+{
+    pthread_cond_destroy(&prodCond);
+    pthread_cond_destroy(&consCond);
 }
 
 int main(int argc, char **argv)
 {
     printf("TSP Program\n");
+
     // ctrl-c 핸들러
     struct sigaction action;
     handleSigaction(&action);
@@ -610,8 +665,9 @@ int main(int argc, char **argv)
     FILE *fp = openFile(filename);
     fileLength = findFileLength(fp);
 
-    printf("%d\n", fileLength);
+    printf("number of file rows: %d\n", fileLength);
     initMap(fp, fileLength);
+    initBuffer();
     initCache();
 
     initSemaphore();
@@ -620,6 +676,11 @@ int main(int argc, char **argv)
     createThreads();
 
     getUserInput();
+    pthread_join(_producer, NULL);
+    for (int i = 0; i < consumersLength; i++)
+    {
+        pthread_join(_consumers[i], NULL);
+    }
 
     return 0;
 }
