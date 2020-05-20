@@ -65,16 +65,6 @@ void initMap(FILE *, int);
 void initCache(void);
 void getUserInput(void);
 void checkArgcCorrentness(int);
-void fileNotFoundError(void);
-void noCommandLineArgumentError(void);
-void noInitialNumberOfThreadsError(void);
-void tooManyCommandLineArgumentsError(void);
-void memoryAllocationError(void);
-void threadCreateError(int);
-void semaphoreCreateError(void);
-void outOfBoundError(void);
-void invalidThreadNumberError(void);
-void noContextsinFileError(void);
 void fscanfError(void);
 void initConsumersPointer(void);
 void createThreads(void);
@@ -94,6 +84,17 @@ void showResult(void);
 void showThread(void);
 void showStat(void);
 void onDisconnect(int);
+
+void fileNotFoundError(void);
+void noCommandLineArgumentError(void);
+void noInitialNumberOfThreadsError(void);
+void tooManyCommandLineArgumentsError(void);
+void memoryAllocationError(void);
+void threadCreateError(int);
+void semaphoreCreateError(void);
+void outOfBoundError(void);
+void invalidThreadNumberError(void);
+void noContextsinFileError(void);
 
 void freeMemories(void) {
     for (int i = 0; i < fileLength; i++) {
