@@ -36,6 +36,7 @@ int consumersLength;
 // 소비자 스레드에게 주어지는 id 역할을 할 정수형 변수 선언
 int consumersCount;
 Element buffer[BUFFER_SIZE];
+Element currentElem[8];
 int tid[8];
 int searchCountProducerSum;
 int searchCountConsumersSum;
@@ -492,6 +493,28 @@ void *consumer(void *ptr)
     int consumerNumber = getConsumerNumber();
     tid[consumerNumber] = gettid();
     int currentRecord[50];
+    if (currentElem[consumerNumber].visited)
+    {
+        Elem = currentElem[consumerNumber];
+        for (int next = 0; next < fileLength; next++)
+        {
+            if (Elem.currentIndex == next)
+            {
+                continue;
+            }
+            if (Elem.visited & (1 << next))
+                continue;
+            if (map[Elem.currentIndex][next] == 0)
+                continue;
+            TSP_consumer(currentRecord,
+                         Elem.sum,
+                         consumerNumber,
+                         fileLength - 11, next, Elem.visited | (1 << next));
+        }
+        currentElem[consumerNumber].sum = 0;
+        currentElem[consumerNumber].currentIndex = 0;
+        currentElem[consumerNumber].visited = 0;
+    }
     while (1)
     {
         pthread_mutex_lock(&consMutex);
@@ -521,6 +544,9 @@ void *consumer(void *ptr)
         buffer[consIndex].sum = 0;
         buffer[consIndex].currentIndex = 0;
         buffer[consIndex].visited = 0;
+        currentElem[consumerNumber].sum = Elem.sum;
+        currentElem[consumerNumber].currentIndex = Elem.currentIndex;
+        currentElem[consumerNumber].visited = Elem.visited;
 
         consIndex = (consIndex + 1) % BUFFER_SIZE;
         pthread_mutex_unlock(&consMutex);
@@ -543,6 +569,9 @@ void *consumer(void *ptr)
                          consumerNumber,
                          fileLength - 11, next, Elem.visited | (1 << next));
         }
+        currentElem[consumerNumber].sum = 0;
+        currentElem[consumerNumber].currentIndex = 0;
+        currentElem[consumerNumber].visited = 0;
     }
 
     pthread_exit(NULL);
@@ -657,6 +686,7 @@ int main(int argc, char **argv)
     fileLength = findFileLength(fp);
 
     printf("number of file rows: %d\n", fileLength);
+    printf("Calculating...\n");
     initMap(fp, fileLength);
     initBuffer();
     initCache();
