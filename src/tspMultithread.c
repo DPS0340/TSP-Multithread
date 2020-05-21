@@ -702,7 +702,7 @@ int main(int argc, char **argv) {
     printf("number of file rows: %d\n", fileLength);
     printf("Calculating...\n");
     // map 배열 초기화
-    initMap(fp, fileLength);
+    initMap(fp, fileLength);    
     // 버퍼 초기화
     initBuffer();
     // tsp 문제에 쓰일 캐시 메모리를 할당한다

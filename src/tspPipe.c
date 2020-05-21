@@ -210,6 +210,8 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
     searchCountmainThreadSum++;
     if (count == fileLength - 13) {
         int childNumber, err;
+        while (buffer[prodIndex].visited)
+            ;
         buffer[prodIndex].currentIndex = currentIndex;
         buffer[prodIndex].sum = sum;
         buffer[prodIndex].visited = visited;
