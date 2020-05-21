@@ -516,7 +516,7 @@ int findFileLength(FILE *fp) {
     return n + 1;
 }
 void *producer(void *ptr) {
-    int path[50] = {
+    int path[50] = { 
         0,
     };
     // 노드를 순회하면서

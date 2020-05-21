@@ -235,8 +235,7 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
     int *ptr = &cache[currentIndex][visited];
     // 이미 계산된 값이 있을경우
     // 캐싱이 되었다는걸 의미한다
-    if (*ptr && *ptr != INT16_MAX)
-    {
+    if (*ptr && *ptr != INT16_MAX) {
         // 캐싱된 값을 돌려준다
         return sum + (*ptr);
     }
@@ -253,9 +252,10 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
         if (visited & (1 << next))
             continue;
         // 재귀적으로 호출하면서 최소값을 찾음
-        *ptr = min(*ptr, TSP_mainThread(pathRecord, sum + map[currentIndex][next],
-                                        next, visited | (1 << next), count + 1) +
-                             map[currentIndex][next]);
+        *ptr =
+            min(*ptr, TSP_mainThread(pathRecord, sum + map[currentIndex][next],
+                                     next, visited | (1 << next), count + 1) +
+                          map[currentIndex][next]);
     }
     return *ptr;
 }
@@ -453,7 +453,7 @@ void handleSigaction(struct sigaction *actionPtr) {
 }
 void showResult(void) {
     showStat();
-    printf("Press enter to continue...\n");
+    printf("Closing the program...\n");
 }
 void showStat(void) {
     // 모든 스레드가 탐색된 경로들의 갯수들 (캐시되어서 두번 이상 탐색될
