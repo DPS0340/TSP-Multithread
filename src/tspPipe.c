@@ -55,13 +55,18 @@ int **cache;
 // 지도 배열
 // 50은 최대 tsp 입력값의 row의 갯수와 같다
 int map[50][50];
+// 생산자가 다루는 버퍼의 현재 인덱스 선언
+// 나머지 연산으로 값이 순환됨
+int prodIndex = 0;
 // 소비자가 다루는 버퍼의 현재 인덱스 선언
 // 나머지 연산으로 값이 순환됨
-int consIndex = 0;
+int childsIndex = 0;
 // 생산자 - 소비자 문제 해결을 위한 뮤텍스 선언
 // 스레드간의 공유 객체의 쓰기, 읽기가 엉키는 것을 방지할 수 있다
-pthread_mutex_t consMutex;
-pthread_cond_t consCond;
+pthread_mutex_t childsMutex;
+pthread_cond_t childsCond;
+// 유한 버퍼를 선언
+Element buffer[BUFFER_SIZE];
 
 // 거리의 최소값 변수 선언
 // 여기에서는 초기값으로 충분히 큰 정수인 32767로 설정하였다
@@ -154,10 +159,6 @@ int showNextThreadNumber(void)
 
 void freeMemories(void)
 {
-    for (int i = 0; i < fileLength; i++)
-    {
-        free(cache[i]);
-    }
     free(cache);
 }
 int min(int a, int b) { return a < b ? a : b; }
@@ -166,9 +167,9 @@ int TSP_child(int *pathRecord, int sum, int threadNumber, int count,
 {
     // 현재 간 노드를 기록한다
     pathRecord[count] = currentIndex;
-    pthread_mutex_lock(&consMutex);
+    pthread_mutex_lock(&childsMutex);
     searchCountchildsSum++;
-    pthread_mutex_unlock(&consMutex);
+    pthread_mutex_unlock(&childsMutex);
     // 다 가본 경우
     if (visited == (1 << fileLength) - 1)
     {
@@ -176,16 +177,16 @@ int TSP_child(int *pathRecord, int sum, int threadNumber, int count,
         if (sum < bestResult)
         {
             // 전역 변수 쓰기를 하므로 충돌을 막기 위해 lock을 건다
-            pthread_mutex_lock(&consMutex);
+            pthread_mutex_lock(&childsMutex);
             bestResult = sum;
             for (int i = 0; i < fileLength; i++)
             {
                 fastestWay[i] = pathRecord[i];
             }
             // 전역 변수 쓰기를 다했으므로 lock을 푼다
-            pthread_mutex_unlock(&consMutex);
+            pthread_mutex_unlock(&childsMutex);
         }
-        return sum + map[currentIndex][0];
+        return sum + map[currentIndex][pathRecord[0]];
     }
     int *ptr = &cache[currentIndex][visited];
     // 이미 계산된 값이 있을경우
@@ -220,19 +221,27 @@ int TSP_child(int *pathRecord, int sum, int threadNumber, int count,
 int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
                    int count)
 {
+    // 현재 간 노드를 기록한다
+    pathRecord[count] = currentIndex;
     searchCountmainThreadSum++;
     if (count == fileLength - 13)
     {
         int childNumber, err;
-        Element Elem;
-        // 원소에 값을 대입한다
-        Elem.sum = sum;
-        Elem.currentIndex = currentIndex;
-        Elem.visited = visited;
-        while((childNumber =  showNextThreadNumber()) == -1)
+        buffer[prodIndex].currentIndex = currentIndex;
+        buffer[prodIndex].sum = sum;
+        buffer[prodIndex].visited = visited;
+
+        for (int i = 0; i <= count; i++)
+        {
+            buffer[prodIndex].path[i] = pathRecord[i];
+        }
+
+        while ((childNumber = showNextThreadNumber()) == -1)
             ;
+        // 1을 추가하고 사이즈보다 클시에는 나머지 연산을 통해서 0으로 돌린다
         err = pthread_create(&_childThreads[childNumber], NULL, child,
-                             (void *)&Elem);
+                             (void *)&buffer[prodIndex]);
+        prodIndex = (prodIndex + 1) % BUFFER_SIZE;
         if (err)
         {
             threadCreateError(err);
@@ -240,18 +249,9 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
 
         return 0;
     }
-    if (visited == (1 << fileLength) - 1)
-    {
-        return map[currentIndex][0];
-    }
-    int *ptr = &cache[currentIndex][visited];
-    if (*ptr && *ptr != INT16_MAX)
-    {
-        return *ptr;
-    }
     // 충분히 큰 값을 초기값으로 대입
     // 최소값을 찾기 위해서이다
-    *ptr = INT16_MAX;
+    int res = INT16_MAX;
     // 여러 노드를 방문하려고 시도한다
     for (int next = 0; next < fileLength; next++)
     {
@@ -264,12 +264,12 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
         if (visited & (1 << next))
             continue;
         // 재귀적으로 호출하면서 최소값을 찾음
-        *ptr =
-            min(*ptr, TSP_mainThread(pathRecord, sum + map[currentIndex][next],
-                                     next, visited | (1 << next), count + 1) +
-                          map[currentIndex][next]);
+        res =
+            min(res, TSP_mainThread(pathRecord, sum + map[currentIndex][next],
+                                    next, visited | (1 << next), count + 1) +
+                         map[currentIndex][next]);
     }
-    return *ptr;
+    return res;
 }
 
 void initCache(void)
@@ -412,14 +412,17 @@ void closeThreads(void)
 {
     for (int i = 0; i < childsLength; i++)
     {
-        pthread_cancel(_childThreads[i]);
+        if (isChildsWorking[i])
+        {
+            pthread_cancel(_childThreads[i]);
+        }
     }
     free(_childThreads);
 }
 void closeMutex(void)
 {
-    pthread_mutex_destroy(&consMutex);
-    pthread_cond_destroy(&consCond);
+    pthread_mutex_destroy(&childsMutex);
+    pthread_cond_destroy(&childsCond);
 }
 
 int findFileLength(FILE *fp)
@@ -462,11 +465,11 @@ void produceByMainThread(void)
 void *child(void *ptr)
 {
     Element Elem = *(Element *)ptr;
-    pthread_mutex_lock(&consMutex);
+    pthread_mutex_lock(&childsMutex);
     int threadNumber = showNextThreadNumber();
     isChildsWorking[threadNumber] = 1;
     childsLength++;
-    pthread_mutex_unlock(&consMutex);
+    pthread_mutex_unlock(&childsMutex);
     int currentRecord[50];
 
     for (int i = 0; i < fileLength - 12; i++)
@@ -531,14 +534,12 @@ void showStat(void)
     {
         printf("%d->", fastestWay[i]);
     }
-    // 마지막 화살표 지우기
-    printf("\b\b");
-    printf("  \n");
+    printf("%d\n", fastestWay[0]);
 }
 void initMutex(void)
 {
-    pthread_mutex_init(&consMutex, NULL);
-    pthread_cond_init(&consCond, NULL);
+    pthread_mutex_init(&childsMutex, NULL);
+    pthread_cond_init(&childsCond, NULL);
 }
 void onDisconnect(int sig)
 {
@@ -549,8 +550,8 @@ void onDisconnect(int sig)
     pthread_exit(NULL);
     exit(0);
 }
-void destroyMutex(void) { pthread_mutex_destroy(&consMutex); }
-void destroyCond(void) { pthread_cond_destroy(&consCond); }
+void destroyMutex(void) { pthread_mutex_destroy(&childsMutex); }
+void destroyCond(void) { pthread_cond_destroy(&childsCond); }
 
 int main(int argc, char **argv)
 {

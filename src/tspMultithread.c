@@ -202,14 +202,14 @@ int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count,
             // 전역 변수 쓰기를 다했으므로 lock을 푼다
             pthread_mutex_unlock(&consMutex);
         }
-        return map[currentIndex][0];
+        return sum + map[currentIndex][pathRecord[0]];
     }
     int *ptr = &cache[currentIndex][visited];
     // 이미 계산된 값이 있을경우
     // 캐싱이 되었다는걸 의미한다
     if (*ptr && *ptr != INT16_MAX) {
         // 캐싱된 값을 돌려준다
-        return *ptr;
+        return sum + (*ptr);
     }
     // 충분히 큰 값을 초기값으로 대입
     // 최소값을 찾기 위해서이다
