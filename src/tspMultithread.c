@@ -57,7 +57,8 @@ int searchCountConsumersSum;
 int searchCount[8];
 // 캐시 배열
 // 사이즈가 크므로 추후에 heap 영역으로 동적 할당 받는다
-// 메모리를 차지하는 공간 복잡도가 O(n*(2^n))이 되지만
+// 메모리를 차지하는 공간 복잡도가
+// n이 행 갯수일때 O((2^n))이 되지만
 // 수행 속도가 수백배 빨라지는 효과를 보므로 캐시를 사용하게 했다
 int **cache;
 // 지도 배열
@@ -723,9 +724,6 @@ int main(int argc, char **argv) {
 
     // 무한 루프를 통해 사용자 입력을 받음
     getUserInput();
-
-    // 메인 스레드를 제외한 스레드가 모두 종료되어
-    onDisconnect(0);
 
     return 0;
 }
