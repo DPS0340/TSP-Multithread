@@ -498,7 +498,7 @@ int main(int argc, char **argv) {
     char *filename = argv[1];
     childsLength = atoi(argv[2]);
     // 입력받은 스레드 개수가 정상적인 범위에 있지 않을 경우
-    if (1 > childsLength || childsLength > 8) {
+    if (1 > childsLength || childsLength > 12) {
         // 에러 출력후 프로그램 종료
         invalidThreadNumberError();
     }
