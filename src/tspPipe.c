@@ -178,6 +178,7 @@ int TSP_child(int *resultPath, int *pathRecord, int *localSmallest, int sum, int
         // 현재값이 스레드 최소값이면
         if (sum < *localSmallest)
         {
+            *localSmallest = sum;
             for (int i = 0; i < fileLength; i++)
             {
                 resultPath[i] = pathRecord[i];
@@ -513,10 +514,6 @@ void *child(void *ptr)
         int res = TSP_child(resultPath, currentRecord, &localSmallest, Elem.sum + map[Elem.currentIndex][next],
                             threadNumber, fileLength - 12, next,
                             Elem.visited | (1 << next));
-        if (res < localSmallest)
-        {
-            localSmallest = res;
-        }
     }
 
     Packet pack;
