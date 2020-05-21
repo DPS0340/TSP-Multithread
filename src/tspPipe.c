@@ -517,7 +517,7 @@ void showStat(void)
     // 경로들의 갯수는 제외)
     printf("Number of searched routes (except cached routes): %d\n",
            searchCountmainThreadSum + searchCountchildsSum);
-    printf("Number of searched routes by mainThread Thread: %d\n",
+    printf("Number of searched routes by main Thread: %d\n",
            searchCountmainThreadSum);
     printf("Number of searched routes by child Thread: %d\n",
            searchCountchildsSum);
