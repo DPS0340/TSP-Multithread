@@ -184,18 +184,17 @@ int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count,
                  int currentIndex, uint64_t visited) {
     // 현재 간 노드를 기록한다
     pathRecord[count] = currentIndex;
-    //
     pthread_mutex_lock(&consMutex);
     searchCountConsumersSum++;
     searchCount[threadNumber]++;
     pthread_mutex_unlock(&consMutex);
     // 다 가본 경우
-    if (visited == (1 << fileLength) - 1) {
+    if (visited == (uint64_t)(1 << fileLength) - 1) {
         // 현재값이 전역 최소값이면
         if (sum < bestResult) {
             // 전역 변수 쓰기를 하므로 충돌을 막기 위해 lock을 건다
             pthread_mutex_lock(&consMutex);
-            bestResult = sum;
+            bestResult = sum + map[currentIndex][pathRecord[0]];
             for (int i = 0; i < fileLength; i++) {
                 fastestWay[i] = pathRecord[i];
             }
@@ -544,7 +543,7 @@ void *consumer(void *ptr) {
             // 이미 갔다온 곳일 경우
             if (Elem.visited & (1 << next))
                 continue;
-            TSP_consumer(currentRecord, Elem.sum, consumerNumber,
+            TSP_consumer(currentRecord, Elem.sum + map[Elem.currentIndex][next], consumerNumber,
                          fileLength - 11, next, Elem.visited | (1 << next));
         }
         currentElem[consumerNumber].sum = 0;
@@ -654,6 +653,7 @@ void showStat(void) {
     for (int i = 0; i < fileLength; i++) {
         printf("%d->", fastestWay[i]);
     }
+    printf("0\n");
     // 마지막 화살표 지우기
     printf("\b\b");
     printf("  \n");
