@@ -25,7 +25,8 @@
 #define THREAD_END_CODE -5555
 
 // 생산자 스레드가 소비자 스레드에게 넘겨주는 버퍼의 원소 선언
-typedef struct _Element {
+typedef struct _Element
+{
     // 현재 방문하는 노드의 인덱스값
     int currentIndex;
     // 생산자 스레드가 찾은 합
@@ -173,15 +174,18 @@ void outOfBoundError(void);
 void invalidThreadNumberError(void);
 void noContextsinFileError(void);
 
-void freeMemories(void) {
-    for (int i = 0; i < fileLength; i++) {
+void freeMemories(void)
+{
+    for (int i = 0; i < fileLength; i++)
+    {
         free(cache[i]);
     }
     free(cache);
 }
 int min(int a, int b) { return a < b ? a : b; }
 int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count,
-                 int currentIndex, uint64_t visited) {
+                 int currentIndex, uint64_t visited)
+{
     // 현재 간 노드를 기록한다
     pathRecord[count] = currentIndex;
     //
@@ -190,13 +194,16 @@ int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count,
     searchCount[threadNumber]++;
     pthread_mutex_unlock(&consMutex);
     // 다 가본 경우
-    if (visited == (1 << fileLength) - 1) {
+    if (visited == (1 << fileLength) - 1)
+    {
         // 현재값이 전역 최소값이면
-        if (sum < bestResult) {
+        if (sum < bestResult)
+        {
             // 전역 변수 쓰기를 하므로 충돌을 막기 위해 lock을 건다
             pthread_mutex_lock(&consMutex);
             bestResult = sum;
-            for (int i = 0; i < fileLength; i++) {
+            for (int i = 0; i < fileLength; i++)
+            {
                 fastestWay[i] = pathRecord[i];
             }
             // 전역 변수 쓰기를 다했으므로 lock을 푼다
@@ -207,7 +214,8 @@ int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count,
     int *ptr = &cache[currentIndex][visited];
     // 이미 계산된 값이 있을경우
     // 캐싱이 되었다는걸 의미한다
-    if (*ptr && *ptr != INT16_MAX) {
+    if (*ptr && *ptr != INT16_MAX)
+    {
         // 캐싱된 값을 돌려준다
         return sum + (*ptr);
     }
@@ -215,9 +223,11 @@ int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count,
     // 최소값을 찾기 위해서이다
     *ptr = INT16_MAX;
     // 여러 노드를 방문하려고 시도한다
-    for (int next = 0; next < fileLength; next++) {
+    for (int next = 0; next < fileLength; next++)
+    {
         // 똑같은 경로를 가려고 하는 경우
-        if (currentIndex == next) {
+        if (currentIndex == next)
+        {
             continue;
         }
         // next값이 이미 가본 노드일 경우
@@ -232,14 +242,17 @@ int TSP_consumer(int *pathRecord, int sum, int threadNumber, int count,
     return *ptr;
 }
 int TSP_producer(int *pathRecord, int sum, int currentIndex, uint64_t visited,
-                 int count) {
+                 int count)
+{
     pathRecord[count] = currentIndex;
     searchCountProducerSum++;
-    if (count == fileLength - 12) {
+    if (count == fileLength - 12)
+    {
         // 전역변수 쓰기를 하므로 락을 건다
         pthread_mutex_lock(&prodMutex);
         // 현재 버퍼의 원소가 아직 소비되지 않았을 경우
-        while (buffer[prodIndex].visited) {
+        while (buffer[prodIndex].visited)
+        {
             // 기다린다
             pthread_cond_wait(&prodCond, &prodMutex);
         }
@@ -248,7 +261,8 @@ int TSP_producer(int *pathRecord, int sum, int currentIndex, uint64_t visited,
         buffer[prodIndex].currentIndex = currentIndex;
         buffer[prodIndex].visited = visited;
         // 경로도 대입
-        for (int i = 0; i < count + 1; i++) {
+        for (int i = 0; i < count + 1; i++)
+        {
             buffer[prodIndex].path[i] = pathRecord[i];
         }
         // 1을 추가하고 사이즈보다 클시에는 나머지 연산을 통해서 0으로 돌린다
@@ -258,43 +272,42 @@ int TSP_producer(int *pathRecord, int sum, int currentIndex, uint64_t visited,
         pthread_mutex_lock(&consMutex);
         pthread_cond_signal(&consCond);
         pthread_mutex_unlock(&consMutex);
-        return 0;
-    }
-    if (visited == (1 << fileLength) - 1) {
-        return map[currentIndex][0];
-    }
-    int *ptr = &cache[currentIndex][visited];
-    if (*ptr && *ptr != INT16_MAX) {
-        return *ptr;
+        return sum;
     }
     // 충분히 큰 값을 초기값으로 대입
     // 최소값을 찾기 위해서이다
-    *ptr = INT16_MAX;
+    int res = INT16_MAX;
     // 여러 노드를 방문하려고 시도한다
-    for (int next = 0; next < fileLength; next++) {
+    for (int next = 0; next < fileLength; next++)
+    {
         // 똑같은 경로를 가려고 하는 경우
-        if (currentIndex == next) {
+        if (currentIndex == next)
+        {
             continue;
         }
         // next값이 이미 가본 노드일 경우
         if (visited & (1 << next))
             continue;
         // 재귀적으로 호출하면서 최소값을 찾음
-        *ptr = min(*ptr, TSP_producer(pathRecord, sum + map[currentIndex][next],
-                                      next, visited | (1 << next), count + 1) +
-                             map[currentIndex][next]);
+        res = min(res, TSP_producer(pathRecord, sum + map[currentIndex][next],
+                                    next, visited | (1 << next), count + 1) +
+                           map[currentIndex][next]);
     }
-    return *ptr;
+    return res;
 }
 
-void initCache(void) {
+void initCache(void)
+{
     cache = (int **)calloc(fileLength, sizeof(int *));
-    if (cache == NULL) {
+    if (cache == NULL)
+    {
         return memoryAllocationError();
     }
-    for (int i = 0; i < fileLength; i++) {
+    for (int i = 0; i < fileLength; i++)
+    {
         cache[i] = (int *)calloc(1 << fileLength, sizeof(int));
-        if (cache[i] == NULL) {
+        if (cache[i] == NULL)
+        {
             return memoryAllocationError();
         }
     }
@@ -302,29 +315,36 @@ void initCache(void) {
 
 int getConsumerNumber(void) { return consumersCount++; }
 
-FILE *openFile(const char *filename) {
+FILE *openFile(const char *filename)
+{
     FILE *res = fopen(filename, "r");
-    if (res == NULL) {
+    if (res == NULL)
+    {
         fileNotFoundError();
     }
     return res;
 }
-void initMap(FILE *fp, int fileLength) {
+void initMap(FILE *fp, int fileLength)
+{
     int resCode;
-    for (int i = 0; i < fileLength; i++) {
-        for (int j = 0; j < fileLength; j++) {
+    for (int i = 0; i < fileLength; i++)
+    {
+        for (int j = 0; j < fileLength; j++)
+        {
             // i == j일시 해당 입력파일에서는 값을 주지 않는다
             // 알고리즘에서 필터링하므로 해당 인덱스의 값은 아무 값이어도
             // 상관없지만 전역변수이므로 이미 0으로 초기화되어 추가적인 대입이
             // 필요하지 않다
-            if (i == j) {
+            if (i == j)
+            {
                 continue;
             }
             // fscanf는 하나의 값을 읽어들인 경우 1을 반환한다(포인터 연산과는
             // 다른 순수 return값)
             resCode = fscanf(fp, "%d", &map[i][j]);
             // 결과값이 1이 아니면 읽기에 오류가 있다는 것을 의미하므로
-            if (resCode != 1) {
+            if (resCode != 1)
+            {
                 // 오류를 출력하고 프로그램을 종료한다
                 fscanfError();
             }
@@ -334,141 +354,186 @@ void initMap(FILE *fp, int fileLength) {
     return;
 }
 
-void getUserInput(void) {
+void getUserInput(void)
+{
     // 입력값을 받을 캐릭터 배열 버퍼 선언
     char buffer[101];
-    while (1) {
+    while (1)
+    {
         // 계속하여 사용자 입력값을 stdin에서 받는다
         fgets(buffer, 101, stdin);
         // 모든 스레드가 종료되어 length가 0이 된 경우
-        if (consumersLength == 0) {
+        if (consumersLength == 0)
+        {
             // 루프를 종료하고 함수에서 나간다
             return;
         }
-        if (isStat(buffer)) {
+        if (isStat(buffer))
+        {
             showStat();
-        } else if (isThreads(buffer)) {
+        }
+        else if (isThreads(buffer))
+        {
             showThread();
             showStat();
-        } else if (isNum(buffer)) {
+        }
+        else if (isNum(buffer))
+        {
             int num = getNum(buffer);
-            if (1 < num || num > 8) {
+            if (1 < num || num > 8)
+            {
                 return invalidThreadNumberError();
             }
 
             reallocConsumerThreads(num);
-        } else {
+        }
+        else
+        {
             printf("Wrong keyword\n");
         }
     }
 }
-void checkArgcCorrentness(int argc) {
-    if (argc == 1) {
+void checkArgcCorrentness(int argc)
+{
+    if (argc == 1)
+    {
         return noCommandLineArgumentError();
-    } else if (argc == 2) {
+    }
+    else if (argc == 2)
+    {
         return noInitialNumberOfThreadsError();
-    } else if (argc > 3) {
+    }
+    else if (argc > 3)
+    {
         return tooManyCommandLineArgumentsError();
-    } else {
+    }
+    else
+    {
         return;
     }
 }
-void fileNotFoundError(void) {
+void fileNotFoundError(void)
+{
     fprintf(stderr, "Error: File not found\n");
     exit(1);
 }
-void noCommandLineArgumentError(void) {
+void noCommandLineArgumentError(void)
+{
     fprintf(stderr, "Error: No command line arguments\n");
     exit(1);
 }
-void noInitialNumberOfThreadsError(void) {
+void noInitialNumberOfThreadsError(void)
+{
     fprintf(stderr, "Error: Initial number of consumer threads not given\n");
     exit(1);
 }
-void tooManyCommandLineArgumentsError(void) {
+void tooManyCommandLineArgumentsError(void)
+{
     fprintf(stderr, "Error: Too many command line arguments\n");
     exit(1);
 }
-void memoryAllocationError(void) {
+void memoryAllocationError(void)
+{
     fprintf(stderr, "Error: Memory allocation failed\n");
     exit(1);
 }
-void outOfBoundError(void) {
+void outOfBoundError(void)
+{
     fprintf(stderr, "Error: Array index out of bound\n");
     exit(1);
 }
-void invalidThreadNumberError(void) {
+void invalidThreadNumberError(void)
+{
     fprintf(stderr, "Error: Invalid thread number\n");
     exit(1);
 }
-void noContextsinFileError(void) {
+void noContextsinFileError(void)
+{
     fprintf(stderr, "Error: No contexts in text file\n");
     exit(1);
 }
-void fscanfError(void) {
+void fscanfError(void)
+{
     fprintf(stderr, "Error: fscanf failed\n");
     exit(1);
 }
-void threadCreateError(int errorCode) {
+void threadCreateError(int errorCode)
+{
     fprintf(stderr,
             "Error: Unable to create thread"
             ", Error Code %d\n",
             errorCode);
     exit(1);
 }
-void semaphoreCreateError(void) {
+void semaphoreCreateError(void)
+{
     fprintf(stderr, "Error: Unable to create semaphore\n");
     exit(1);
 }
-void initConsumersPointer() {
+void initConsumersPointer()
+{
     _consumers = (pthread_t *)calloc(consumersLength, sizeof(pthread_t));
 }
-void createThreads() {
+void createThreads()
+{
     int err;
     err = pthread_create(&_producer, NULL, producer, NULL);
-    if (err) {
+    if (err)
+    {
         return threadCreateError(err);
     }
 
-    for (int i = 0; i < consumersLength; i++) {
+    for (int i = 0; i < consumersLength; i++)
+    {
         err = pthread_create(&_consumers[i], NULL, consumer, NULL);
-        if (err) {
+        if (err)
+        {
             return threadCreateError(err);
         }
     }
 }
-void reallocConsumerThreads(int nextCount) {
+void reallocConsumerThreads(int nextCount)
+{
     int currentCount = consumersLength;
     int err;
-    if (currentCount > nextCount) {
-        for (int i = currentCount - 1; i >= nextCount; i--) {
+    if (currentCount > nextCount)
+    {
+        for (int i = currentCount - 1; i >= nextCount; i--)
+        {
             pthread_cancel(_consumers[i]);
             consumersLength--;
         }
     }
     _consumers = realloc((void *)_consumers, nextCount);
 
-    if (_consumers == NULL) {
+    if (_consumers == NULL)
+    {
         return memoryAllocationError();
     }
 
-    if (currentCount < nextCount) {
-        for (int i = currentCount; i < nextCount; i++) {
+    if (currentCount < nextCount)
+    {
+        for (int i = currentCount; i < nextCount; i++)
+        {
             err = pthread_create(&_consumers[i], NULL, consumer, (void *)&i);
-            if (err) {
+            if (err)
+            {
                 return threadCreateError(err);
             }
         }
     }
 }
-void closeThreads(void) {
-    for (int i = 0; i < consumersLength; i++) {
+void closeThreads(void)
+{
+    for (int i = 0; i < consumersLength; i++)
+    {
         pthread_cancel(_consumers[i]);
     }
     free(_consumers);
     pthread_cancel(_producer);
 }
-void closeMutex(void) {
+void closeMutex(void)
+{
     pthread_mutex_destroy(&prodMutex);
     pthread_mutex_destroy(&consMutex);
 
@@ -476,16 +541,20 @@ void closeMutex(void) {
     pthread_cond_destroy(&consCond);
 }
 
-int isStat(const char *buffer) {
+int isStat(const char *buffer)
+{
     return strncmp(buffer, "stat", strlen("stat")) == 0;
 }
-int isThreads(const char *buffer) {
+int isThreads(const char *buffer)
+{
     return strncmp(buffer, "threads", strlen("threads")) == 0;
 }
-int isNum(const char *buffer) {
+int isNum(const char *buffer)
+{
     return strncmp(buffer, "num", strlen("num")) == 0;
 }
-int getNum(const char *buffer) {
+int getNum(const char *buffer)
+{
     int result;
     char *tempPtr = (char *)calloc(strlen(buffer), sizeof(char));
     strcpy(tempPtr, buffer);
@@ -495,14 +564,17 @@ int getNum(const char *buffer) {
     free(tempPtr);
     return result;
 }
-int findFileLength(FILE *fp) {
+int findFileLength(FILE *fp)
+{
     int count = 0, temp;
     // EOF가 나올때까지 count 증가
-    while (fscanf(fp, "%d", &temp) == 1) {
+    while (fscanf(fp, "%d", &temp) == 1)
+    {
         count++;
     }
     // 내용이 없으면
-    if (count == 0) {
+    if (count == 0)
+    {
         // 오류 메시지 출력 후 프로그램 종료
         noContextsinFileError();
     }
@@ -514,12 +586,14 @@ int findFileLength(FILE *fp) {
     // 수식상으로 1을 더한 n+1이 실제 row값이라고 볼 수 있음
     return n + 1;
 }
-void *producer(void *ptr) {
+void *producer(void *ptr)
+{
     int path[50] = {
         0,
     };
     // 노드를 순회하면서
-    for (int i = 0; i < fileLength; i++) {
+    for (int i = 0; i < fileLength; i++)
+    {
         // TSP를 호출한다
         // 한번만 순회하면서 함수를 호출하면 함수 내에서 재귀적으로 모두 커버가
         // 된다
@@ -528,16 +602,20 @@ void *producer(void *ptr) {
     buffer[prodIndex].currentIndex = THREAD_END_CODE;
     return NULL;
 }
-void *consumer(void *ptr) {
+void *consumer(void *ptr)
+{
     Element Elem;
     int consumerNumber = getConsumerNumber();
     tid[consumerNumber] = gettid();
     int currentRecord[50];
-    if (currentElem[consumerNumber].visited) {
+    if (currentElem[consumerNumber].visited)
+    {
         Elem = currentElem[consumerNumber];
-        for (int next = 0; next < fileLength; next++) {
+        for (int next = 0; next < fileLength; next++)
+        {
             // 같은 곳으로 가려고 하는 경우
-            if (Elem.currentIndex == next) {
+            if (Elem.currentIndex == next)
+            {
                 continue;
             }
             // 이미 갔다온 곳일 경우
@@ -550,25 +628,30 @@ void *consumer(void *ptr) {
         currentElem[consumerNumber].currentIndex = 0;
         currentElem[consumerNumber].visited = 0;
     }
-    while (1) {
+    while (1)
+    {
         pthread_mutex_lock(&consMutex);
-        if (buffer[consIndex].currentIndex == THREAD_END_CODE) {
+        if (buffer[consIndex].currentIndex == THREAD_END_CODE)
+        {
             consumersLength--;
             pthread_mutex_unlock(&consMutex);
             pthread_cond_signal(&consCond);
-            if (consumersLength == 0) {
+            if (consumersLength == 0)
+            {
                 printf("\nTask Done!\n");
                 onDisconnect(0);
             }
             break;
         }
 
-        while (buffer[consIndex].visited == 0) {
+        while (buffer[consIndex].visited == 0)
+        {
             pthread_cond_wait(&consCond, &consMutex);
         }
 
         Elem = buffer[consIndex];
-        for (int i = 0; i < fileLength - 11; i++) {
+        for (int i = 0; i < fileLength - 11; i++)
+        {
             currentRecord[i] = Elem.path[i];
         }
         buffer[consIndex].sum = 0;
@@ -584,15 +667,15 @@ void *consumer(void *ptr) {
         pthread_cond_signal(&prodCond);
         pthread_mutex_unlock(&prodMutex);
 
-        for (int next = 0; next < fileLength; next++) {
-            if (Elem.currentIndex == next) {
+        for (int next = 0; next < fileLength; next++)
+        {
+            if (Elem.currentIndex == next)
+            {
                 continue;
             }
             if (Elem.visited & (1 << next))
                 continue;
-            if (map[Elem.currentIndex][next] == 0)
-                continue;
-            TSP_consumer(currentRecord, Elem.sum, consumerNumber,
+            TSP_consumer(currentRecord, Elem.sum + map[Elem.currentIndex][next], consumerNumber,
                          fileLength - 11, next, Elem.visited | (1 << next));
         }
         currentElem[consumerNumber].sum = 0;
@@ -604,17 +687,22 @@ void *consumer(void *ptr) {
 
     return NULL;
 }
-void initBuffer(void) {
-    for (int i = 0; i < BUFFER_SIZE; i++) {
+void initBuffer(void)
+{
+    for (int i = 0; i < BUFFER_SIZE; i++)
+    {
         buffer[i].path = (int *)calloc(50, sizeof(int));
     }
 }
-void closeBuffer(void) {
-    for (int i = 0; i < BUFFER_SIZE; i++) {
+void closeBuffer(void)
+{
+    for (int i = 0; i < BUFFER_SIZE; i++)
+    {
         free(buffer[i].path);
     }
 }
-void handleSigaction(struct sigaction *actionPtr) {
+void handleSigaction(struct sigaction *actionPtr)
+{
     memset(actionPtr, 0, sizeof(*actionPtr));
     actionPtr->sa_handler = onDisconnect;
     sigaction(SIGINT, actionPtr, NULL);
@@ -622,19 +710,23 @@ void handleSigaction(struct sigaction *actionPtr) {
     sigaction(SIGTERM, actionPtr, NULL);
     sigaction(SIGQUIT, actionPtr, NULL);
 }
-void showResult(void) {
+void showResult(void)
+{
     showStat();
     showThread();
     printf("Press enter to continue...\n");
 }
-void showThread(void) {
-    for (int i = 0; i < consumersLength; i++) {
+void showThread(void)
+{
+    for (int i = 0; i < consumersLength; i++)
+    {
         printf("Thread Number : %d\n  TID: %d\n   searched routes of subtask: "
                "%d\n",
                i + 1, tid[i], searchCount[i]);
     }
 }
-void showStat(void) {
+void showStat(void)
+{
     // 모든 스레드가 탐색된 경로들의 갯수들 (캐시되어서 두번 이상 탐색될
     // 경로들의 갯수는 제외)
     printf("Number of searched routes (except cached routes): %d\n",
@@ -644,28 +736,32 @@ void showStat(void) {
     printf("Number of searched routes by Consumer Thread: %d\n",
            searchCountConsumersSum);
     // 초기값 그대로인 경우
-    if (bestResult == INT16_MAX) {
+    if (bestResult == INT16_MAX)
+    {
         // 출력하지 않는다
         return;
     }
     // 현재 최단거리 값
     printf("Current Lowest Sum of Weights: %d\n", bestResult);
     printf("Way: ");
-    for (int i = 0; i < fileLength; i++) {
+    for (int i = 0; i < fileLength; i++)
+    {
         printf("%d->", fastestWay[i]);
     }
     // 마지막 화살표 지우기
     printf("\b\b");
     printf("  \n");
 }
-void initMutex(void) {
+void initMutex(void)
+{
     pthread_mutex_init(&consMutex, NULL);
     pthread_mutex_init(&prodMutex, NULL);
 
     pthread_cond_init(&consCond, NULL);
     pthread_cond_init(&prodCond, NULL);
 }
-void onDisconnect(int sig) {
+void onDisconnect(int sig)
+{
     showResult();
     closeThreads();
     closeMutex();
@@ -674,16 +770,19 @@ void onDisconnect(int sig) {
     pthread_exit(NULL);
     exit(0);
 }
-void destroyMutex(void) {
+void destroyMutex(void)
+{
     pthread_mutex_destroy(&prodMutex);
     pthread_mutex_destroy(&consMutex);
 }
-void destroyCond(void) {
+void destroyCond(void)
+{
     pthread_cond_destroy(&prodCond);
     pthread_cond_destroy(&consCond);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     printf("TSP Program\n");
 
     // ctrl-c 핸들러
@@ -697,7 +796,8 @@ int main(int argc, char **argv) {
     char *filename = argv[1];
     consumersLength = atoi(argv[2]);
     // 입력받은 스레드 개수가 정상적인 범위에 있지 않을 경우
-    if (1 > consumersLength || consumersLength > 8) {
+    if (1 > consumersLength || consumersLength > 8)
+    {
         // 에러 출력후 프로그램 종료
         invalidThreadNumberError();
     }

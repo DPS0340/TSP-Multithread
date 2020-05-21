@@ -213,8 +213,7 @@ int TSP_child(int *pathRecord, int sum, int threadNumber, int count,
         // 재귀적으로 호출하면서 최소값을 찾음
         *ptr = min(*ptr, TSP_child(pathRecord, sum + map[currentIndex][next],
                                    threadNumber, count + 1, next,
-                                   visited | (1 << next)) +
-                             map[currentIndex][next]);
+                                   visited | (1 << next)));
     }
     return *ptr;
 }
@@ -247,7 +246,7 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
             threadCreateError(err);
         }
 
-        return 0;
+        return sum;
     }
     // 충분히 큰 값을 초기값으로 대입
     // 최소값을 찾기 위해서이다
@@ -465,6 +464,9 @@ void produceByMainThread(void)
 void *child(void *ptr)
 {
     Element Elem = *(Element *)ptr;
+    Element *Elem_ptr = (Element *)ptr;
+    Elem_ptr->currentIndex = 0;
+    Elem_ptr->visited = 0;
     pthread_mutex_lock(&childsMutex);
     int threadNumber = showNextThreadNumber();
     isChildsWorking[threadNumber] = 1;
@@ -485,9 +487,7 @@ void *child(void *ptr)
         }
         if (Elem.visited & (1 << next))
             continue;
-        if (map[Elem.currentIndex][next] == 0)
-            continue;
-        TSP_child(currentRecord, Elem.sum, threadNumber, fileLength - 12, next,
+        TSP_child(currentRecord, Elem.sum + map[Elem.currentIndex][next], threadNumber, fileLength - 12, next,
                   Elem.visited | (1 << next));
     }
 
