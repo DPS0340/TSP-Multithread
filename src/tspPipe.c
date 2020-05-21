@@ -232,9 +232,17 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
 
         return sum;
     }
+    int *ptr = &cache[currentIndex][visited];
+    // 이미 계산된 값이 있을경우
+    // 캐싱이 되었다는걸 의미한다
+    if (*ptr && *ptr != INT16_MAX)
+    {
+        // 캐싱된 값을 돌려준다
+        return sum + (*ptr);
+    }
     // 충분히 큰 값을 초기값으로 대입
     // 최소값을 찾기 위해서이다
-    int res = INT16_MAX;
+    *ptr = INT16_MAX;
     // 여러 노드를 방문하려고 시도한다
     for (int next = 0; next < fileLength; next++) {
         // 똑같은 경로를 가려고 하는 경우
@@ -245,11 +253,11 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
         if (visited & (1 << next))
             continue;
         // 재귀적으로 호출하면서 최소값을 찾음
-        res = min(res, TSP_mainThread(pathRecord, sum + map[currentIndex][next],
-                                      next, visited | (1 << next), count + 1) +
-                           map[currentIndex][next]);
+        *ptr = min(*ptr, TSP_mainThread(pathRecord, sum + map[currentIndex][next],
+                                        next, visited | (1 << next), count + 1) +
+                             map[currentIndex][next]);
     }
-    return res;
+    return *ptr;
 }
 
 void initCache(void) {
