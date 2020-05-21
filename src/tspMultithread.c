@@ -733,7 +733,7 @@ void showStat(void)
            searchCountProducerSum + searchCountConsumersSum);
     printf("Number of searched routes by Producer Thread: %d\n",
            searchCountProducerSum);
-    printf("Number of searched routes by Consumer Thread: %d\n",
+    printf("Number of searched routes by Consumer Threads: %d\n",
            searchCountConsumersSum);
     // 초기값 그대로인 경우
     if (bestResult == INT16_MAX)

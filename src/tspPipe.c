@@ -519,7 +519,7 @@ void showStat(void)
            searchCountmainThreadSum + searchCountchildsSum);
     printf("Number of searched routes by main Thread: %d\n",
            searchCountmainThreadSum);
-    printf("Number of searched routes by child Thread: %d\n",
+    printf("Number of searched routes by child Threads: %d\n",
            searchCountchildsSum);
     // 초기값 그대로인 경우
     if (bestResult == INT16_MAX)
