@@ -489,9 +489,11 @@ void *child(void *ptr)
     Element *Elem_ptr = (Element *)ptr;
     Elem_ptr->currentIndex = 0;
     Elem_ptr->visited = 0;
+    // 전역변수 쓰기를 하므로 mutex lock
     pthread_mutex_lock(&childsMutex);
     int threadNumber = showNextThreadNumber();
     isChildsWorking[threadNumber] = 1;
+    // 전역변수 쓰기가 끝났으므로 mutex unlock
     pthread_mutex_unlock(&childsMutex);
     int currentRecord[50];
     int resultPath[50];
@@ -511,21 +513,28 @@ void *child(void *ptr)
         }
         if (Elem.visited & (1 << next))
             continue;
-        int res = TSP_child(resultPath, currentRecord, &localSmallest, Elem.sum + map[Elem.currentIndex][next],
+        // for loop으로 순회하면서
+        // 재귀적으로 TSP
+        TSP_child(resultPath, currentRecord, &localSmallest, Elem.sum + map[Elem.currentIndex][next],
                             threadNumber, fileLength - 12, next,
                             Elem.visited | (1 << next));
     }
 
+    // 패킷 구조체 지역변수 선언
     Packet pack;
+    // value값에 지역 최솟값 대입
     pack.value = localSmallest;
+    // 경로 복사
     for (int i = 0; i < fileLength; i++)
     {
         pack.path[i] = resultPath[i];
     }
 
+    // 쓰기 pipe로 write
     write(fd[threadNumber][1], &pack, sizeof(pack));
     isChildsWorking[threadNumber] = 0;
 
+    // 스레드 종료
     pthread_exit(NULL);
 
     return NULL;
@@ -591,21 +600,28 @@ int isAnyThreadExists(void)
 }
 void listenPipeMessages(void)
 {
+    // 패킷 구조체 변수 선언
     Packet pack;
 
+    // 모든 자식 스레드의 파이프에
     for (int i = 0; i < childsLength; i++)
     {
+        // 읽기 파이프를 non-blocking 모드로 설정
         fcntl(fd[i][0], F_SETFL, fcntl(fd[i][0], F_GETFL) | O_NONBLOCK);
     }
     while (isAnyThreadExists())
     {
         for (int i = 0; i < childsLength; i++)
         {
+            // 파이프 읽기 대기열에 남은게 있으면 읽는다
             while ((read(fd[i][0], &pack, sizeof(pack)) > 0))
             {
+                // 전역 최소값보다 더 작으면
                 if (pack.value < bestResult)
                 {
+                    // 전역 최소값을 다시 설정
                     bestResult = pack.value;
+                    // 경로 복사
                     for (int i = 0; i < fileLength; i++)
                     {
                         fastestWay[i] = pack.path[i];
@@ -656,8 +672,10 @@ int main(int argc, char **argv)
     // 생산자 함수 동작
     produceByMainThread();
 
+    // 파이프에 있는 메시지들을 모두 읽는다
     listenPipeMessages();
 
+    // 프로그램 종료
     onDisconnect(0);
 
     return 0;
