@@ -58,7 +58,7 @@ int searchCountchildsSum;
 // 캐시 배열
 // 사이즈가 크므로 추후에 heap 영역으로 동적 할당 받는다
 // 메모리를 차지하는 공간 복잡도가
-// n이 행 갯수일때 O((2^n))이 되지만
+// n이 행 갯수일때 O(2^n)이 되지만
 // 수행 속도가 수백배 빨라지는 효과를 보므로 캐시를 사용하게 했다
 int **cache;
 // 지도 배열
@@ -187,7 +187,7 @@ int TSP_child(int *resultPath, int *pathRecord, int *localSmallest, int sum,
         return sum + map[currentIndex][pathRecord[0]];
     }
     int *ptr = &cache[currentIndex][visited];
-    // 이미 계산된 값이 있을경우
+    // 이미 계산된 값이 있을경우 
     // 캐싱이 되었다는걸 의미한다
     if (*ptr && *ptr != INT16_MAX) {
         // 캐싱된 값을 돌려준다
@@ -220,16 +220,18 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
     if (count == fileLength - 13) {
         int childNumber, err;
         // 현재 버퍼가 비어있지 않을 경우 블로킹
-        while (buffer[prodIndex].visited)
+        while (buffer[prodIndex].visited || (childNumber = showNextThreadNumber()) == -1)
             ;
         buffer[prodIndex].currentIndex = currentIndex;
         buffer[prodIndex].sum = sum;
         buffer[prodIndex].visited = visited;
 
         for (int i = 0; i <= count; i++) {
+            // 경로 복사
             buffer[prodIndex].path[i] = pathRecord[i];
         }
 
+        // ,스레드 만들기
         err = pthread_create(&_childThreads[childNumber], NULL, child,
                              (void *)&buffer[prodIndex]);
         // 1을 추가하고 사이즈보다 클시에는 나머지 연산을 통해서 0으로 돌린다
@@ -289,8 +291,12 @@ FILE *openFile(const char *filename) {
     return res;
 }
 void initPipe(void) {
+    // 자식 스레드의 갯수만큼
     for (int i = 0; i < childsLength; i++) {
+        // 파이프를 초기화하고
+        // 파이프가 제대로 할당되지 않으면
         if (pipe(fd[i]) == -1) {
+            // 오류 출력
             return initPipeError();
         }
     }
@@ -435,12 +441,8 @@ void *child(void *ptr) {
     Element *Elem_ptr = (Element *)ptr;
     Elem_ptr->currentIndex = 0;
     Elem_ptr->visited = 0;
-    // 전역변수 쓰기를 하므로 mutex lock
-    pthread_mutex_lock(&childsMutex);
     int threadNumber = showNextThreadNumber();
     isChildsWorking[threadNumber] = 1;
-    // 전역변수 쓰기가 끝났으므로 mutex unlock
-    pthread_mutex_unlock(&childsMutex);
     int currentRecord[50] = {
         0,
     };
