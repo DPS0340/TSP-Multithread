@@ -24,7 +24,8 @@
 #define BUFFER_SIZE 200
 
 // 메인 스레드가 자식 스레드에게 넘겨주는 버퍼의 원소 선언
-typedef struct _Element {
+typedef struct _Element
+{
     // 현재 방문하는 노드의 인덱스값
     int currentIndex;
     // 생산자 스레드가 찾은 합
@@ -32,9 +33,10 @@ typedef struct _Element {
     // 비트를 이용한 노드 방문 여부
     uint64_t visited;
     // 생산자 스레드가 가본 경로를 담는 배열
-    int path[50];
+    int path[51];
 } Element;
-typedef struct _Packet {
+typedef struct _Packet
+{
     // 지역 최솟값
     int value;
     // 지역 최솟값의 경로
@@ -157,9 +159,12 @@ void invalidThreadNumberError(void);
 void noContextsinFileError(void);
 void initPipeError(void);
 
-int showNextThreadNumber(void) {
-    for (int i = 0; i < childsLength; i++) {
-        if (isChildsWorking[i] == 0) {
+int showNextThreadNumber(void)
+{
+    for (int i = 0; i < childsLength; i++)
+    {
+        if (isChildsWorking[i] == 0)
+        {
             return i;
         }
     }
@@ -169,27 +174,32 @@ int showNextThreadNumber(void) {
 void freeMemories(void) { free(cache); }
 int min(int a, int b) { return a < b ? a : b; }
 int TSP_child(int *resultPath, int *pathRecord, int *localSmallest, int sum,
-              int threadNumber, int count, int currentIndex, uint64_t visited) {
+              int threadNumber, int count, int currentIndex, uint64_t visited)
+{
     // 현재 간 노드를 임시로 기록한다
     pathRecord[count] = currentIndex;
     pthread_mutex_lock(&childsMutex);
     searchCountchildsSum++;
     pthread_mutex_unlock(&childsMutex);
     // 다 가본 경우
-    if (visited == (uint64_t)(1 << fileLength) - 1) {
+    if (visited == (uint64_t)(1 << fileLength) - 1)
+    {
         // 현재값이 스레드 최소값이면
-        if (sum < *localSmallest) {
+        if (sum < *localSmallest)
+        {
             *localSmallest = sum;
-            for (int i = 0; i < fileLength; i++) {
+            for (int i = 0; i < fileLength; i++)
+            {
                 resultPath[i] = pathRecord[i];
             }
         }
         return sum + map[currentIndex][pathRecord[0]];
     }
     int *ptr = &cache[currentIndex][visited];
-    // 이미 계산된 값이 있을경우 
+    // 이미 계산된 값이 있을경우
     // 캐싱이 되었다는걸 의미한다
-    if (*ptr && *ptr != INT16_MAX) {
+    if (*ptr && *ptr != INT16_MAX)
+    {
         // 캐싱된 값을 돌려준다
         return sum + (*ptr);
     }
@@ -197,9 +207,11 @@ int TSP_child(int *resultPath, int *pathRecord, int *localSmallest, int sum,
     // 최소값을 찾기 위해서이다
     *ptr = INT16_MAX;
     // 여러 노드를 방문하려고 시도한다
-    for (int next = 0; next < fileLength; next++) {
+    for (int next = 0; next < fileLength; next++)
+    {
         // 똑같은 경로를 가려고 하는 경우
-        if (currentIndex == next) {
+        if (currentIndex == next)
+        {
             continue;
         }
         // next값이 이미 가본 노드일 경우
@@ -213,30 +225,40 @@ int TSP_child(int *resultPath, int *pathRecord, int *localSmallest, int sum,
     return *ptr;
 }
 int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
-                   int count) {
+                   int count)
+{
     // 현재 간 노드를 기록한다
     pathRecord[count] = currentIndex;
     searchCountmainThreadSum++;
-    if (count == fileLength - 13) {
+    if (count == fileLength - 13)
+    {
         int childNumber, err;
         // 현재 버퍼가 비어있지 않을 경우 블로킹
-        while (buffer[prodIndex].visited || (childNumber = showNextThreadNumber()) == -1)
+        while (buffer[prodIndex].visited)
             ;
         buffer[prodIndex].currentIndex = currentIndex;
         buffer[prodIndex].sum = sum;
         buffer[prodIndex].visited = visited;
 
-        for (int i = 0; i <= count; i++) {
+        for (int i = 0; i <= count; i++)
+        {
             // 경로 복사
             buffer[prodIndex].path[i] = pathRecord[i];
         }
 
-        // ,스레드 만들기
+        while (showNextThreadNumber() == -1)
+            ;
+        childNumber = showNextThreadNumber();
+
+        // 번호 넘겨주기
+        buffer[prodIndex].path[50] = childNumber;
+        // 스레드 만들기
         err = pthread_create(&_childThreads[childNumber], NULL, child,
                              (void *)&buffer[prodIndex]);
         // 1을 추가하고 사이즈보다 클시에는 나머지 연산을 통해서 0으로 돌린다
         prodIndex = (prodIndex + 1) % BUFFER_SIZE;
-        if (err) {
+        if (err)
+        {
             threadCreateError(err);
         }
 
@@ -245,7 +267,8 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
     int *ptr = &cache[currentIndex][visited];
     // 이미 계산된 값이 있을경우
     // 캐싱이 되었다는걸 의미한다
-    if (*ptr && *ptr != INT16_MAX) {
+    if (*ptr && *ptr != INT16_MAX)
+    {
         // 캐싱된 값을 돌려준다
         return sum + (*ptr);
     }
@@ -253,9 +276,11 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
     // 최소값을 찾기 위해서이다
     *ptr = INT16_MAX;
     // 여러 노드를 방문하려고 시도한다
-    for (int next = 0; next < fileLength; next++) {
+    for (int next = 0; next < fileLength; next++)
+    {
         // 똑같은 경로를 가려고 하는 경우
-        if (currentIndex == next) {
+        if (currentIndex == next)
+        {
             continue;
         }
         // next값이 이미 가본 노드일 경우
@@ -270,53 +295,67 @@ int TSP_mainThread(int *pathRecord, int sum, int currentIndex, uint64_t visited,
     return *ptr;
 }
 
-void initCache(void) {
+void initCache(void)
+{
     cache = (int **)calloc(fileLength, sizeof(int *));
-    if (cache == NULL) {
+    if (cache == NULL)
+    {
         return memoryAllocationError();
     }
-    for (int i = 0; i < fileLength; i++) {
+    for (int i = 0; i < fileLength; i++)
+    {
         cache[i] = (int *)calloc(1 << fileLength, sizeof(int));
-        if (cache[i] == NULL) {
+        if (cache[i] == NULL)
+        {
             return memoryAllocationError();
         }
     }
 }
 
-FILE *openFile(const char *filename) {
+FILE *openFile(const char *filename)
+{
     FILE *res = fopen(filename, "r");
-    if (res == NULL) {
+    if (res == NULL)
+    {
         fileNotFoundError();
     }
     return res;
 }
-void initPipe(void) {
+void initPipe(void)
+{
     // 자식 스레드의 갯수만큼
-    for (int i = 0; i < childsLength; i++) {
+    for (int i = 0; i < childsLength; i++)
+    {
         // 파이프를 초기화하고
         // 파이프가 제대로 할당되지 않으면
-        if (pipe(fd[i]) == -1) {
+        if (pipe(fd[i]) == -1)
+        {
             // 오류 출력
             return initPipeError();
         }
     }
 }
-void initMap(FILE *fp, int fileLength) {
+void initMap(FILE *fp, int fileLength)
+{
     int resCode;
-    for (int i = 0; i < fileLength; i++) {
-        for (int j = 0; j < fileLength; j++) {
+    for (int i = 0; i < fileLength; i++)
+    {
+        for (int j = 0; j < fileLength; j++)
+        {
             // i == j일시 해당 입력파일에서는 값을 주지 않는다
             // 알고리즘에서 필터링하므로 해당 인덱스의 값은 아무 값이어도
             // 상관없지만 전역변수이므로 이미 0으로 초기화되어 추가적인 대입이
             // 필요하지 않다
-            if (i == j) {
+            if (i == j)
+            {
                 continue;
             }
             // fscanf는 하나의 값을 읽어들인 경우 1을 반환한다(포인터 연산과는
             // 다른 순수 return값)
             resCode = fscanf(fp, "%d", &map[i][j]);
             // 결과값이 1이 아니면 읽기에 오류가 있다는 것을 의미하므로
-            if (resCode != 1) {
+            if (resCode != 1)
+            {
                 // 오류를 출력하고 프로그램을 종료한다
                 fscanfError();
             }
@@ -325,76 +364,100 @@ void initMap(FILE *fp, int fileLength) {
     fclose(fp);
     return;
 }
-void checkArgcCorrentness(int argc) {
-    if (argc == 1) {
+void checkArgcCorrentness(int argc)
+{
+    if (argc == 1)
+    {
         return noCommandLineArgumentError();
-    } else if (argc == 2) {
+    }
+    else if (argc == 2)
+    {
         return noInitialNumberOfThreadsError();
-    } else if (argc > 3) {
+    }
+    else if (argc > 3)
+    {
         return tooManyCommandLineArgumentsError();
-    } else {
+    }
+    else
+    {
         return;
     }
 }
-void fileNotFoundError(void) {
+void fileNotFoundError(void)
+{
     fprintf(stderr, "Error: File not found\n");
     exit(1);
 }
-void noCommandLineArgumentError(void) {
+void noCommandLineArgumentError(void)
+{
     fprintf(stderr, "Error: No command line arguments\n");
     exit(1);
 }
-void noInitialNumberOfThreadsError(void) {
+void noInitialNumberOfThreadsError(void)
+{
     fprintf(stderr, "Error: Initial number of child threads not given\n");
     exit(1);
 }
-void tooManyCommandLineArgumentsError(void) {
+void tooManyCommandLineArgumentsError(void)
+{
     fprintf(stderr, "Error: Too many command line arguments\n");
     exit(1);
 }
-void memoryAllocationError(void) {
+void memoryAllocationError(void)
+{
     fprintf(stderr, "Error: Memory allocation failed\n");
     exit(1);
 }
-void outOfBoundError(void) {
+void outOfBoundError(void)
+{
     fprintf(stderr, "Error: Array index out of bound\n");
     exit(1);
 }
-void invalidThreadNumberError(void) {
+void invalidThreadNumberError(void)
+{
     fprintf(stderr, "Error: Invalid thread number\n");
     exit(1);
 }
-void noContextsinFileError(void) {
+void noContextsinFileError(void)
+{
     fprintf(stderr, "Error: No contexts in text file\n");
     exit(1);
 }
-void initPipeError(void) {
+void initPipeError(void)
+{
     fprintf(stderr, "Error: Pipe initialization failed\n");
     exit(1);
 }
-void fscanfError(void) {
+void fscanfError(void)
+{
     fprintf(stderr, "Error: fscanf failed\n");
     exit(1);
 }
-void threadCreateError(int errorCode) {
+void threadCreateError(int errorCode)
+{
     fprintf(stderr,
             "Error: Unable to create thread"
             ", Error Code %d\n",
             errorCode);
     exit(1);
 }
-void semaphoreCreateError(void) {
+void semaphoreCreateError(void)
+{
     fprintf(stderr, "Error: Unable to create semaphore\n");
     exit(1);
 }
-void initchildsPointer() {
+void initchildsPointer()
+{
     _childThreads = (pthread_t *)calloc(childsLength, sizeof(pthread_t));
 }
-void closeThreads(void) {
+void closeThreads(void)
+{
     // 모든 자식 스레드 순회
-    for (int i = 0; i < childsLength; i++) {
+    for (int i = 0; i < childsLength; i++)
+    {
         // 자식 스레드가 작동중일 경우
-        if (isChildsWorking[i]) {
+        if (isChildsWorking[i])
+        {
             // 스레드 종료
             pthread_cancel(_childThreads[i]);
         }
@@ -404,14 +467,17 @@ void closeThreads(void) {
 }
 void closeMutex(void) { pthread_mutex_destroy(&childsMutex); }
 
-int findFileLength(FILE *fp) {
+int findFileLength(FILE *fp)
+{
     int count = 0, temp;
     // EOF가 나올때까지 count 증가
-    while (fscanf(fp, "%d", &temp) == 1) {
+    while (fscanf(fp, "%d", &temp) == 1)
+    {
         count++;
     }
     // 내용이 없으면
-    if (count == 0) {
+    if (count == 0)
+    {
         // 오류 메시지 출력 후 프로그램 종료
         noContextsinFileError();
     }
@@ -423,12 +489,14 @@ int findFileLength(FILE *fp) {
     // 수식상으로 1을 더한 n+1이 실제 row값이라고 볼 수 있음
     return n + 1;
 }
-void produceByMainThread(void) {
+void produceByMainThread(void)
+{
     int path[50] = {
         0,
     };
     // 노드를 순회하면서
-    for (int i = 0; i < fileLength; i++) {
+    for (int i = 0; i < fileLength; i++)
+    {
         // TSP를 호출한다
         // 한번만 순회하면서 함수를 호출하면 함수 내에서 재귀적으로 모두 커버가
         // 된다
@@ -436,12 +504,13 @@ void produceByMainThread(void) {
     }
     return;
 }
-void *child(void *ptr) {
+void *child(void *ptr)
+{
     Element Elem = *(Element *)ptr;
     Element *Elem_ptr = (Element *)ptr;
+    int threadNumber = Elem.path[50];
     Elem_ptr->currentIndex = 0;
     Elem_ptr->visited = 0;
-    int threadNumber = showNextThreadNumber();
     isChildsWorking[threadNumber] = 1;
     int currentRecord[50] = {
         0,
@@ -451,7 +520,8 @@ void *child(void *ptr) {
     };
 
     // 경로 복사
-    for (int i = 0; i < fileLength - 12; i++) {
+    for (int i = 0; i < fileLength - 12; i++)
+    {
         currentRecord[i] = Elem.path[i];
     }
 
@@ -459,13 +529,16 @@ void *child(void *ptr) {
     // 충분히 큰 값인 32767 대입
     int localSmallest = INT16_MAX;
 
-    for (int next = 0; next < fileLength; next++) {
+    for (int next = 0; next < fileLength; next++)
+    {
         // 원래 있던 곳으로 가려는 경우
-        if (Elem.currentIndex == next) {
+        if (Elem.currentIndex == next)
+        {
             continue;
         }
         // 갔던 곳을 다시 가려는 경우
-        if (Elem.visited & (1 << next)) {
+        if (Elem.visited & (1 << next))
+        {
             continue;
         }
         // for loop으로 순회하면서
@@ -480,7 +553,8 @@ void *child(void *ptr) {
     // value값에 지역 최솟값 대입
     pack.value = localSmallest;
     // 경로 복사
-    for (int i = 0; i < fileLength; i++) {
+    for (int i = 0; i < fileLength; i++)
+    {
         pack.path[i] = resultPath[i];
     }
 
@@ -493,7 +567,8 @@ void *child(void *ptr) {
 
     return NULL;
 }
-void handleSigaction(struct sigaction *actionPtr) {
+void handleSigaction(struct sigaction *actionPtr)
+{
     memset(actionPtr, 0, sizeof(*actionPtr));
     actionPtr->sa_handler = onDisconnect;
     sigaction(SIGINT, actionPtr, NULL);
@@ -501,11 +576,13 @@ void handleSigaction(struct sigaction *actionPtr) {
     sigaction(SIGTERM, actionPtr, NULL);
     sigaction(SIGQUIT, actionPtr, NULL);
 }
-void showResult(void) {
+void showResult(void)
+{
     showStat();
     printf("Closing the program...\n");
 }
-void showStat(void) {
+void showStat(void)
+{
     // 모든 스레드가 탐색된 경로들의 갯수들 (캐시되어서 두번 이상 탐색될
     // 경로들의 갯수는 제외)
     printf("Number of searched routes (except cached routes): %d\n",
@@ -515,19 +592,22 @@ void showStat(void) {
     printf("Number of searched routes by child Threads: %d\n",
            searchCountchildsSum);
     // 초기값 그대로인 경우
-    if (bestResult == INT16_MAX) {
+    if (bestResult == INT16_MAX)
+    {
         // 출력하지 않는다
         return;
     }
     // 현재 최단거리 값
     printf("Current Lowest Sum of Weights: %d\n", bestResult);
     printf("Way: ");
-    for (int i = 0; i < fileLength; i++) {
+    for (int i = 0; i < fileLength; i++)
+    {
         printf("%d->", fastestWay[i]);
     }
     printf("%d\n", fastestWay[0]);
 }
-void onDisconnect(int sig) {
+void onDisconnect(int sig)
+{
     showResult();
     closeThreads();
     closeMutex();
@@ -535,33 +615,43 @@ void onDisconnect(int sig) {
     pthread_exit(NULL);
     exit(0);
 }
-int isAnyThreadExists(void) {
-    for (int i = 0; i < childsLength; i++) {
-        if (isChildsWorking[i]) {
+int isAnyThreadExists(void)
+{
+    for (int i = 0; i < childsLength; i++)
+    {
+        if (isChildsWorking[i])
+        {
             return 1;
         }
     }
     return 0;
 }
-void listenPipeMessages(void) {
+void listenPipeMessages(void)
+{
     // 패킷 구조체 변수 선언
     Packet pack;
 
     // 모든 자식 스레드의 파이프에
-    for (int i = 0; i < childsLength; i++) {
+    for (int i = 0; i < childsLength; i++)
+    {
         // 읽기 파이프를 non-blocking 모드로 설정
         fcntl(fd[i][0], F_SETFL, fcntl(fd[i][0], F_GETFL) | O_NONBLOCK);
     }
-    while (isAnyThreadExists()) {
-        for (int i = 0; i < childsLength; i++) {
+    while (isAnyThreadExists())
+    {
+        for (int i = 0; i < childsLength; i++)
+        {
             // 파이프 읽기 대기열에 남은게 있으면 읽는다
-            while ((read(fd[i][0], &pack, sizeof(pack)) > 0)) {
+            while ((read(fd[i][0], &pack, sizeof(pack)) > 0))
+            {
                 // 전역 최소값보다 더 작으면
-                if (pack.value < bestResult) {
+                if (pack.value < bestResult)
+                {
                     // 전역 최소값을 다시 설정
                     bestResult = pack.value;
                     // 경로 복사
-                    for (int i = 0; i < fileLength; i++) {
+                    for (int i = 0; i < fileLength; i++)
+                    {
                         fastestWay[i] = pack.path[i];
                     }
                 }
@@ -569,7 +659,8 @@ void listenPipeMessages(void) {
         }
     }
 }
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     printf("TSP Program\n");
 
     // ctrl-c 핸들러
@@ -583,7 +674,8 @@ int main(int argc, char **argv) {
     char *filename = argv[1];
     childsLength = atoi(argv[2]);
     // 입력받은 스레드 개수가 정상적인 범위에 있지 않을 경우
-    if (1 > childsLength || childsLength > 12) {
+    if (1 > childsLength || childsLength > 12)
+    {
         // 에러 출력후 프로그램 종료
         invalidThreadNumberError();
     }
