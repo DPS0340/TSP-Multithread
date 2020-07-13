@@ -4,6 +4,6 @@ A solution of Travelling Salesman Problem using POSIX multithread consumer-produ
 # Explanation
 This multithread model exhibits one producer and multiple producer.
 
-Connection between threads performed by shared memory among threads(global variable in code).
+Connection between threads performed by shared memory among threads(global variables in code).
 
 Commit messages are quite dirty, because this repository is assumed private and sole use. i apologize.
